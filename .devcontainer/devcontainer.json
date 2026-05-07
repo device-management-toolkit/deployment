@@ -1,0 +1,65 @@
+{
+    "name": "Cloud Deployment Dev Container",
+    "build": {
+        "dockerfile": "Dockerfile",
+        "args": {
+            "HTTP_PROXY": "${localEnv:HTTP_PROXY:}",
+            "HTTPS_PROXY": "${localEnv:HTTPS_PROXY:}",
+            "NO_PROXY": "${localEnv:NO_PROXY:}",
+            "http_proxy": "${localEnv:http_proxy:}",
+            "https_proxy": "${localEnv:https_proxy:}",
+            "no_proxy": "${localEnv:no_proxy:}"
+        }
+    },
+    "features": {
+        "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+            "version": "latest",
+            "enableNonRootDocker": "true",
+            "moby": "true"
+        },
+        "ghcr.io/devcontainers/features/node:2": {
+            "version": "lts"
+        },
+        "ghcr.io/devcontainers/features/go:1": {
+            "version": "latest"
+        },
+        "ghcr.io/devcontainers/features/common-utils:2": {
+            "installZsh": true,
+            "configureZshAsDefaultShell": true,
+            "installOhMyZsh": true,
+            "upgradePackages": true
+        }
+    },
+    "containerEnv": {
+        "LOCAL_WORKSPACE_FOLDER": "${localWorkspaceFolder}",
+        "HTTP_PROXY": "${localEnv:HTTP_PROXY:}",
+        "HTTPS_PROXY": "${localEnv:HTTPS_PROXY:}",
+        "NO_PROXY": "${localEnv:NO_PROXY:}",
+        "http_proxy": "${localEnv:http_proxy:}",
+        "https_proxy": "${localEnv:https_proxy:}",
+        "no_proxy": "${localEnv:no_proxy:}"
+    },
+    "forwardPorts": [
+        4200,
+        3000,
+        8081,
+        8003
+    ],
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-azuretools.vscode-docker",
+                "dbaeumer.vscode-eslint",
+                "golang.go",
+                "ms-vscode.cpptools",
+                "ryu1kn.text-marker",
+                "shd101wyy.markdown-preview-enhanced",
+                "shardulm94.trailing-spaces",
+                "waderyan.gitblame",
+                "esbenp.prettier-vscode"
+            ]
+        }
+    },
+    "initializeCommand": "sed -i 's/\\r$//' .devcontainer/post-create.sh && /bin/bash .devcontainer/pre-create.sh",
+    "postCreateCommand": "sed -i 's/\\r$//' .devcontainer/post-create.sh && /bin/bash .devcontainer/post-create.sh"
+}

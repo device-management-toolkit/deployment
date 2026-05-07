@@ -48,6 +48,17 @@ az deployment group create --resource-group openamt --template-file azureDeploy.
 
 Additional deployments, such as Kubernetes via Azure (AKS) or AWS (EKS), can be found in our [Documentation Site][docs].
 
+## Develop in a Dev Container
+
+This repo ships with a ready-to-use [VS Code Dev Container](.devcontainer/devcontainer.json) so you can clone, open, and start debugging without manual setup.
+
+1. Install [Docker](https://docs.docker.com/get-docker/) and the [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) extension for VS Code.
+2. Open this repo in VS Code and choose **Reopen in Container** when prompted.
+3. The container auto-generates `.env`, JWT/Vault secrets, and patches `kong.yaml`, `cypress.config.ts`, and `docker-compose.yml` on first launch; Go/Node toolchains plus `air`, `dlv`, and `go-licenses` are installed inside the container.
+4. Forwarded ports: `4200` (UI), `3000`, `8081`, `8003`.
+
+Proxy variables (`HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`) are forwarded from the host automatically. See [DEVELOPER_DEVCONTAINER.md](DEVELOPER_DEVCONTAINER.md) for full details.
+
 ## Additional Resources
 
 - For detailed documentation and Getting Started, [visit the docs site][docs].

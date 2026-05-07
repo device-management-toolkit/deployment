@@ -5,13 +5,6 @@
 
 set -e
 
-# Stop the service if it's running as a LaunchDaemon
-PLIST_PATH="/Library/LaunchDaemons/com.intel.dmt-console.plist"
-if [ -f "$PLIST_PATH" ]; then
-    echo "Stopping existing DMT Console service..."
-    launchctl unload "$PLIST_PATH" 2>/dev/null || true
-fi
-
 # Remove old symlink if it exists
 if [ -L "/usr/local/bin/dmt-console" ]; then
     rm -f "/usr/local/bin/dmt-console"

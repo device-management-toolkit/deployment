@@ -76,9 +76,10 @@ else
     echo "Keeping configuration and data files at: $APP_DIR/"
 fi
 
-# Forget the package receipt (allows clean reinstall)
-echo "Removing package receipt..."
-pkgutil --forget com.intel.dmt-console 2>/dev/null || true
+# Forget the package receipts (allows clean reinstall)
+echo "Removing package receipts..."
+pkgutil --forget com.intel.dmt-console-ui 2>/dev/null || true
+pkgutil --forget com.intel.dmt-console-headless 2>/dev/null || true
 
 echo ""
 echo "=============================================="

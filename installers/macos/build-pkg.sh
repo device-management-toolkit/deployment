@@ -8,31 +8,52 @@ set -e
 VERSION="${1:-0.0.0}"
 ARCH="${2:-arm64}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-BUILD_DIR="$PROJECT_ROOT/installer/macos/build"
-OUTPUT_DIR="$PROJECT_ROOT/dist/darwin"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+BUILD_DIR="$REPO_ROOT/installers/macos/build"
+OUTPUT_DIR="$REPO_ROOT/dist/darwin"
+
+# Console source is consumed via the services/console submodule when binaries
+# are built locally. For release-train builds, set BINARY_DIR to a directory
+# containing prebuilt binaries (see expected names below) to skip building.
+CONSOLE_SRC="$REPO_ROOT/services/console"
+BINARY_DIR="${BINARY_DIR:-$OUTPUT_DIR}"
+UI_BINARY="$BINARY_DIR/console_mac_${ARCH}_tray"
+HEADLESS_BINARY="$BINARY_DIR/console_mac_${ARCH}_headless_tray"
 
 echo "Building macOS PKG installers..."
 echo "Version: $VERSION"
 echo "Architecture: $ARCH"
+echo "Binary dir: $BINARY_DIR"
 echo ""
 
 mkdir -p "$OUTPUT_DIR"
 
-# Build binaries
-echo "=== Building Binaries ==="
+if [ -x "$UI_BINARY" ] && [ -x "$HEADLESS_BINARY" ]; then
+    echo "=== Using prebuilt binaries ==="
+    echo "  UI:       $UI_BINARY"
+    echo "  Headless: $HEADLESS_BINARY"
+else
+    echo "=== Building Binaries from $CONSOLE_SRC ==="
+    if [ ! -f "$CONSOLE_SRC/cmd/app/main.go" ] && [ ! -d "$CONSOLE_SRC/cmd/app" ]; then
+        echo "Error: console source not found at $CONSOLE_SRC" >&2
+        echo "Either initialize the submodule:" >&2
+        echo "    git submodule update --init services/console" >&2
+        echo "or provide prebuilt binaries via BINARY_DIR env var:" >&2
+        echo "    BINARY_DIR=/path/to/dist/darwin $0 $VERSION $ARCH" >&2
+        echo "  expected files: $(basename "$UI_BINARY"), $(basename "$HEADLESS_BINARY")" >&2
+        exit 1
+    fi
 
-# Build UI binary with tray (requires native macOS build with CGO)
-echo "Building UI binary with tray (CGO_ENABLED=1)..."
-UI_BINARY="$OUTPUT_DIR/console_mac_${ARCH}_tray"
-CGO_ENABLED=1 GOOS=darwin GOARCH=$ARCH go build -tags=tray -ldflags "-s -w" -trimpath -o "$UI_BINARY" "$PROJECT_ROOT/cmd/app"
-echo "  Built: $UI_BINARY"
+    mkdir -p "$BINARY_DIR"
 
-# Build headless binary with tray (requires native macOS build with CGO)
-echo "Building headless binary with tray (CGO_ENABLED=1)..."
-HEADLESS_BINARY="$OUTPUT_DIR/console_mac_${ARCH}_headless_tray"
-CGO_ENABLED=1 GOOS=darwin GOARCH=$ARCH go build -tags='tray noui' -ldflags "-s -w" -trimpath -o "$HEADLESS_BINARY" "$PROJECT_ROOT/cmd/app"
-echo "  Built: $HEADLESS_BINARY"
+    echo "Building UI binary with tray (CGO_ENABLED=1)..."
+    (cd "$CONSOLE_SRC" && CGO_ENABLED=1 GOOS=darwin GOARCH=$ARCH go build -tags=tray -ldflags "-s -w" -trimpath -o "$UI_BINARY" ./cmd/app)
+    echo "  Built: $UI_BINARY"
+
+    echo "Building headless binary with tray (CGO_ENABLED=1)..."
+    (cd "$CONSOLE_SRC" && CGO_ENABLED=1 GOOS=darwin GOARCH=$ARCH go build -tags='tray noui' -ldflags "-s -w" -trimpath -o "$HEADLESS_BINARY" ./cmd/app)
+    echo "  Built: $HEADLESS_BINARY"
+fi
 
 echo ""
 
@@ -72,7 +93,7 @@ build_pkg() {
 
     # Copy and process resources
     cp "$SCRIPT_DIR/resources/"*.html "$BUILD_DIR/resources/"
-    cp "$PROJECT_ROOT/LICENSE" "$BUILD_DIR/resources/license.txt"
+    cp "$REPO_ROOT/LICENSE" "$BUILD_DIR/resources/license.txt"
 
     # Set edition-specific conclusion text
     if [ "$EDITION" = "ui" ]; then

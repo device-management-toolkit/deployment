@@ -11,20 +11,13 @@ on:
         description: "Installer version string baked into the .pkg. Empty = derived from console tag."
         required: false
         default: ""
-      arch:
-        description: "Target architecture."
-        required: true
-        default: "arm64"
-        type: choice
-        options:
-          - arm64
 
 permissions:
   contents: read
 
 jobs:
   build:
-    name: Build .pkg (${{ inputs.arch }})
+    name: Build .pkg
     runs-on: macos-latest
     steps:
       - name: Harden Runner
@@ -75,11 +68,10 @@ jobs:
 
       - name: Build .pkg installers
         env:
-          ARCH: ${{ inputs.arch }}
           INSTALLER_VERSION: ${{ steps.ver.outputs.installer_version }}
         run: |
           chmod +x ./installers/macos/build-pkg.sh
-          ./installers/macos/build-pkg.sh "$INSTALLER_VERSION" "$ARCH"
+          ./installers/macos/build-pkg.sh "$INSTALLER_VERSION" arm64
 
       # TODO: Apple signing + notarization.
       # When ready, add these steps before the upload, gated on secret presence:
@@ -103,7 +95,7 @@ jobs:
       - name: Upload installer artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: console-macos-installer-${{ steps.ver.outputs.installer_version }}-${{ inputs.arch }}
+          name: console-macos-installer-${{ steps.ver.outputs.installer_version }}-arm64
           path: dist/darwin/*.pkg
           if-no-files-found: error
           retention-days: 30

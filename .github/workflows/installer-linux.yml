@@ -7,6 +7,14 @@ on:
         description: "Console release tag to package. Empty = latest."
         required: false
         default: ""
+      arch:
+        description: "Target architecture."
+        required: true
+        default: "amd64"
+        type: choice
+        options:
+          - amd64
+          - arm64
 
 permissions:
   contents: read

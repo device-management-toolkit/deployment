@@ -1,0 +1,134 @@
+#!/bin/bash
+# Device Management Toolkit Console - Post-installation script (Headless Edition)
+# Copyright (c) Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+set -e
+
+INSTALL_DIR="/usr/local/bin"
+APP_DIR="/usr/local/device-management-toolkit"
+CONFIG_DIR="$APP_DIR/config"
+DATA_DIR="$APP_DIR/data"
+CONFIG_FILE="$CONFIG_DIR/config.yml"
+
+# Get the console user (the user who initiated the install)
+CONSOLE_USER=$(stat -f "%Su" /dev/console)
+
+# Create symlink in /usr/local/bin for easy CLI access
+if [ -f "$APP_DIR/console" ]; then
+    ln -sf "$APP_DIR/console" "$INSTALL_DIR/dmt-console"
+    echo "Created symlink: $INSTALL_DIR/dmt-console -> $APP_DIR/console"
+fi
+
+# Create data directory with proper permissions
+if [ ! -d "$DATA_DIR" ]; then
+    mkdir -p "$DATA_DIR"
+fi
+chmod 777 "$DATA_DIR"
+
+# Create config directory
+if [ ! -d "$CONFIG_DIR" ]; then
+    mkdir -p "$CONFIG_DIR"
+    chmod 755 "$CONFIG_DIR"
+fi
+
+# Only create config if it doesn't exist (preserve existing config on upgrade)
+if [ ! -f "$CONFIG_FILE" ]; then
+    # Generate config.yml with defaults
+    cat > "$CONFIG_FILE" << EOF
+app:
+  name: console
+  repo: device-management-toolkit/console
+  version: VERSION_PLACEHOLDER
+  encryption_key: ""
+  allow_insecure_ciphers: false
+http:
+  host: localhost
+  port: "8181"
+  ws_compression: false
+  tls:
+    enabled: true
+    certFile: ""
+    keyFile: ""
+  allowed_origins:
+    - "*"
+  allowed_headers:
+    - "*"
+logger:
+  log_level: info
+secrets:
+  address: http://localhost:8200
+  token: ""
+postgres:
+  pool_max: 2
+  url: ""
+ea:
+  url: http://localhost:8000
+  username: ""
+  password: ""
+auth:
+  disabled: false
+  adminUsername: standalone
+  adminPassword: G@ppm0ym
+  jwtKey: your_secret_jwt_key
+  jwtExpiration: 24h0m0s
+  redirectionJWTExpiration: 5m0s
+  clientId: ""
+  issuer: ""
+  ui:
+    clientId: ""
+    issuer: ""
+    scope: ""
+    redirectUri: ""
+    responseType: "code"
+    requireHttps: false
+    strictDiscoveryDocumentValidation: true
+ui:
+  externalUrl: ""
+EOF
+
+    chmod 644 "$CONFIG_FILE"
+    chown "$CONSOLE_USER" "$CONFIG_FILE" 2>/dev/null || true
+    echo "Configuration saved to $CONFIG_FILE"
+else
+    echo "Existing configuration preserved at $CONFIG_FILE"
+    # Ensure existing config is readable
+    chmod 644 "$CONFIG_FILE" 2>/dev/null || true
+fi
+
+# Copy the configuration script for future use
+if [ -f "$APP_DIR/configure.sh" ]; then
+    chmod +x "$APP_DIR/configure.sh"
+    ln -sf "$APP_DIR/configure.sh" "$INSTALL_DIR/dmt-configure"
+fi
+
+# Copy the uninstall script
+if [ -f "$APP_DIR/uninstall.sh" ]; then
+    chmod +x "$APP_DIR/uninstall.sh"
+    ln -sf "$APP_DIR/uninstall.sh" "$INSTALL_DIR/dmt-uninstall"
+fi
+
+echo ""
+echo "======================================================="
+echo "Device Management Toolkit Console (Headless) installed!"
+echo "======================================================="
+echo ""
+echo "To reconfigure:"
+echo "  sudo dmt-configure"
+echo ""
+echo "To uninstall:"
+echo "  sudo dmt-uninstall"
+echo ""
+
+# Auto-launch the console with tray mode
+if [ -n "$CONSOLE_USER" ] && [ "$CONSOLE_USER" != "root" ]; then
+    echo "Launching DMT Console for user: $CONSOLE_USER"
+    # Launch as the console user with tray mode
+    sudo -u "$CONSOLE_USER" nohup "$APP_DIR/console" --tray > /dev/null 2>&1 &
+    sleep 1
+    echo "DMT Console is now running in the system tray."
+else
+    echo "Please run 'dmt-console --tray' to start the console."
+fi
+
+exit 0

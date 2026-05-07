@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-size: 12px;
+            line-height: 1.5;
+            padding: 20px;
+            color: #333;
+            background: #fff;
+        }
+        h2 {
+            font-size: 14px;
+            color: #333;
+            margin-top: 20px;
+        }
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: "SF Mono", Monaco, monospace;
+            font-size: 11px;
+        }
+        pre {
+            background: #f4f4f4;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        .note {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        @media (prefers-color-scheme: dark) {
+            body {
+                color: #e0e0e0;
+                background: #1e1e1e;
+            }
+            h2 {
+                color: #f0f0f0;
+            }
+            code {
+                background: #2d2d2d;
+                color: #e0e0e0;
+            }
+            pre {
+                background: #2d2d2d;
+                color: #e0e0e0;
+            }
+            .note {
+                background: #3a3000;
+                border-color: #b38600;
+                color: #f0e0a0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h2>Installation Details</h2>
+    <p>The following components will be installed:</p>
+    <ul>
+        <li>Console application: <code>/usr/local/device-management-toolkit/console</code></li>
+        <li>Configuration tool: <code>/usr/local/device-management-toolkit/configure.sh</code></li>
+        <li>CLI symlinks: <code>/usr/local/bin/dmt-console</code>, <code>/usr/local/bin/dmt-configure</code></li>
+    </ul>
+
+    <h2>Post-Installation Configuration</h2>
+    <div class="note">
+        <strong>Important:</strong> After installation, run the configuration tool to set up your preferences:
+        <pre>sudo dmt-configure</pre>
+    </div>
+    <p>The configuration tool allows you to:</p>
+    <ul>
+        <li>Set the HTTP port (default: 8181)</li>
+        <li>Enable/disable TLS/HTTPS</li>
+        <li>Configure administrator credentials</li>
+    </ul>
+
+    <h2>Quick Start (Using Defaults)</h2>
+    <p>To start immediately with default settings:</p>
+    <pre>dmt-console --tray</pre>
+
+    <h2>Requirements</h2>
+    <ul>
+        <li>macOS 10.15 (Catalina) or later</li>
+        <li>Administrator privileges for installation and configuration</li>
+    </ul>
+</body>
+</html>

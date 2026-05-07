@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<installer-gui-script minSpecVersion="2">
+    <title>Device Management Toolkit Console</title>
+    <organization>com.intel</organization>
+    <domains enable_localSystem="true" enable_anywhere="false"/>
+
+    <options customize="never" require-scripts="true" rootVolumeOnly="true"/>
+
+    <!-- Minimum macOS version requirement -->
+    <volume-check>
+        <allowed-os-versions>
+            <os-version min="10.15"/>
+        </allowed-os-versions>
+    </volume-check>
+
+    <!-- Welcome, License, Readme -->
+    <welcome file="welcome.html"/>
+    <license file="license.txt"/>
+    <readme file="readme.html"/>
+    <conclusion file="conclusion.html"/>
+
+    <!-- Installation choices -->
+    <choices-outline>
+        <line choice="default">
+            <line choice="com.intel.dmt-console.pkg"/>
+        </line>
+    </choices-outline>
+
+    <choice id="default"/>
+
+    <choice id="com.intel.dmt-console.pkg"
+            visible="false"
+            title="Device Management Toolkit Console"
+            description="Core console application">
+        <pkg-ref id="com.intel.dmt-console.pkg"/>
+    </choice>
+
+    <pkg-ref id="com.intel.dmt-console.pkg"
+             version="VERSION_PLACEHOLDER"
+             onConclusion="none">console.pkg</pkg-ref>
+</installer-gui-script>

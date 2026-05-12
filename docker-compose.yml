@@ -22,6 +22,7 @@ services:
       SECRET_TOKEN: ${VAULT_TOKEN}
       HTTP_PORT: "8181"
       LOG_LEVEL: info
+      GIN_MODE: debug
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8181/api/v1/health"]
       interval: 12s

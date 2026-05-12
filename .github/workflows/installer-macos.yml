@@ -1,0 +1,101 @@
+name: Build macOS Installer
+
+on:
+  workflow_dispatch:
+    inputs:
+      console_version:
+        description: "Console release tag to package (e.g. v1.26.0). Empty = latest."
+        required: false
+        default: ""
+      installer_version:
+        description: "Installer version string baked into the .pkg. Empty = derived from console tag."
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build .pkg
+    runs-on: macos-latest
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout deployment repo
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Resolve console version
+        id: ver
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REQUESTED: ${{ inputs.console_version }}
+          INSTALLER_VERSION_INPUT: ${{ inputs.installer_version }}
+        run: |
+          set -euo pipefail
+          if [ -n "$REQUESTED" ]; then
+            tag="$REQUESTED"
+          else
+            tag=$(gh release view --repo device-management-toolkit/console --json tagName -q .tagName)
+          fi
+          if [ -n "$INSTALLER_VERSION_INPUT" ]; then
+            installer_version="$INSTALLER_VERSION_INPUT"
+          else
+            installer_version="${tag#v}"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "installer_version=$installer_version" >> "$GITHUB_OUTPUT"
+          echo "Console tag: $tag"
+          echo "Installer version: $installer_version"
+
+      - name: Checkout console source at release tag
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: device-management-toolkit/console
+          ref: ${{ steps.ver.outputs.tag }}
+          path: services/console
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5.2.0
+        with:
+          go-version-file: services/console/go.mod
+
+      - name: Build .pkg installers
+        env:
+          INSTALLER_VERSION: ${{ steps.ver.outputs.installer_version }}
+        run: |
+          chmod +x ./installers/macos/build-pkg.sh
+          ./installers/macos/build-pkg.sh "$INSTALLER_VERSION" arm64
+
+      # TODO: Apple signing + notarization.
+      # When ready, add these steps before the upload, gated on secret presence:
+      #
+      #   - Import Developer ID Installer cert from APPLE_DEVELOPER_ID_CERT_P12_BASE64
+      #     into a temporary keychain using `security create-keychain` / `security import`.
+      #   - productsign --sign "Developer ID Installer: <Team Name>" \
+      #         dist/darwin/console_<v>_macos_<arch>.pkg dist/darwin/<v>-signed.pkg
+      #   - xcrun notarytool submit dist/darwin/<v>-signed.pkg \
+      #         --apple-id "$AC_USERNAME" --password "$AC_PASSWORD" --team-id "$AC_TEAM_ID" --wait
+      #   - xcrun stapler staple dist/darwin/<v>-signed.pkg
+      #
+      # Required repo secrets:
+      #   APPLE_DEVELOPER_ID_CERT_P12_BASE64   base64-encoded .p12
+      #   APPLE_DEVELOPER_ID_CERT_PASSWORD     .p12 password
+      #   APPLE_KEYCHAIN_PASSWORD              ephemeral keychain password
+      #   AC_USERNAME                          Apple ID for notarization
+      #   AC_PASSWORD                          app-specific password
+      #   AC_TEAM_ID                           Developer Team ID
+
+      - name: Upload installer artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: console-macos-installer-${{ steps.ver.outputs.installer_version }}-arm64
+          path: dist/darwin/*.pkg
+          if-no-files-found: error
+          retention-days: 30

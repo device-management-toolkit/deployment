@@ -1,0 +1,14 @@
+#!/bin/bash
+# Device Management Toolkit Console - Pre-installation script
+# Copyright (c) Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+set -e
+
+# Remove old symlink if it exists
+if [ -L "/usr/local/bin/dmt-console" ]; then
+    rm -f "/usr/local/bin/dmt-console"
+fi
+
+echo "Pre-installation cleanup completed."
+exit 0

@@ -48,6 +48,8 @@ services:
       dockerfile: ./Dockerfile
       args:
         BUILD_CONFIGURATION: enterprise
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
     environment:
       CONSOLE_SERVER_API: https://${MPS_COMMON_NAME}
       VAULT_SERVER: https://${MPS_COMMON_NAME}/vault

@@ -1,0 +1,165 @@
+#!/bin/bash
+# Device Management Toolkit Console - Post-installation script
+# Copyright (c) Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+# The build script substitutes VERSION_PLACEHOLDER and EDITION_LABEL_PLACEHOLDER
+# when staging this file for pkgbuild.
+
+set -e
+
+EDITION_LABEL="EDITION_LABEL_PLACEHOLDER"
+
+INSTALL_DIR="/usr/local/bin"
+APP_DIR="/usr/local/device-management-toolkit"
+CONFIG_DIR="$APP_DIR/config"
+CONFIG_FILE="$CONFIG_DIR/config.yml"
+CREDS_FILE="$APP_DIR/INITIAL_CREDENTIALS.txt"
+
+# Pick the install user: $USER/$SUDO_USER from the installer env, falling back to the active GUI session.
+resolve_install_user() {
+    local u
+    for u in "$USER" "$SUDO_USER"; do
+        if [ -n "$u" ] && [ "$u" != "root" ]; then
+            echo "$u"
+            return
+        fi
+    done
+    stat -f "%Su" /dev/console 2>/dev/null
+}
+CONSOLE_USER=$(resolve_install_user)
+
+# Create symlink in /usr/local/bin for easy CLI access
+if [ -f "$APP_DIR/console" ]; then
+    ln -sf "$APP_DIR/console" "$INSTALL_DIR/dmt-console"
+    echo "Created symlink: $INSTALL_DIR/dmt-console -> $APP_DIR/console"
+fi
+
+# DB lives in ~/Library/Application Support via os.UserConfigDir(), so only config/ is needed here.
+if [ ! -d "$CONFIG_DIR" ]; then
+    mkdir -p "$CONFIG_DIR"
+    chmod 755 "$CONFIG_DIR"
+fi
+
+# Only create config if it doesn't exist (preserve existing config on upgrade)
+if [ ! -f "$CONFIG_FILE" ]; then
+    # Generate random credentials per install (no shipped defaults)
+    ADMIN_PASSWORD=$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 20)
+    JWT_KEY=$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 48)
+
+    # Generate config.yml with defaults
+    cat > "$CONFIG_FILE" << EOF
+app:
+  name: console
+  repo: device-management-toolkit/console
+  version: VERSION_PLACEHOLDER
+  encryption_key: ""
+  allow_insecure_ciphers: false
+http:
+  host: localhost
+  port: "8181"
+  ws_compression: false
+  tls:
+    enabled: true
+    certFile: ""
+    keyFile: ""
+  allowed_origins:
+    - "*"
+  allowed_headers:
+    - "*"
+logger:
+  log_level: info
+secrets:
+  address: http://localhost:8200
+  token: ""
+postgres:
+  pool_max: 2
+  url: ""
+ea:
+  url: http://localhost:8000
+  username: ""
+  password: ""
+auth:
+  disabled: false
+  adminUsername: standalone
+  adminPassword: $ADMIN_PASSWORD
+  jwtKey: $JWT_KEY
+  jwtExpiration: 24h0m0s
+  redirectionJWTExpiration: 5m0s
+  clientId: ""
+  issuer: ""
+  ui:
+    clientId: ""
+    issuer: ""
+    scope: ""
+    redirectUri: ""
+    responseType: "code"
+    requireHttps: false
+    strictDiscoveryDocumentValidation: true
+ui:
+  externalUrl: ""
+EOF
+
+    chmod 600 "$CONFIG_FILE"
+    chown "$CONSOLE_USER" "$CONFIG_FILE" 2>/dev/null || true
+    echo "Configuration saved to $CONFIG_FILE"
+
+    # Don't echo the password — pkg postinstall stdout lands in world-readable /var/log/install.log.
+    umask 077
+    cat > "$CREDS_FILE" <<CREDS
+Device Management Toolkit Console - Initial Credentials
+========================================================
+These credentials were generated at install time. Change them with
+\`sudo dmt-configure\` and delete this file once recorded.
+
+  Username: standalone
+  Password: $ADMIN_PASSWORD
+CREDS
+    chmod 600 "$CREDS_FILE"
+    echo ""
+    echo "======================================================="
+    echo "Initial admin credentials saved to:"
+    echo "  $CREDS_FILE"
+    echo "Read it with: sudo cat $CREDS_FILE"
+    echo "Change them with: sudo dmt-configure"
+    echo "======================================================="
+else
+    echo "Existing configuration preserved at $CONFIG_FILE"
+    chmod 600 "$CONFIG_FILE" 2>/dev/null || true
+fi
+
+# Copy the configuration script for future use
+if [ -f "$APP_DIR/configure.sh" ]; then
+    chmod +x "$APP_DIR/configure.sh"
+    ln -sf "$APP_DIR/configure.sh" "$INSTALL_DIR/dmt-configure"
+fi
+
+# Copy the uninstall script
+if [ -f "$APP_DIR/uninstall.sh" ]; then
+    chmod +x "$APP_DIR/uninstall.sh"
+    ln -sf "$APP_DIR/uninstall.sh" "$INSTALL_DIR/dmt-uninstall"
+fi
+
+echo ""
+echo "======================================================="
+echo "Device Management Toolkit Console ($EDITION_LABEL) installed!"
+echo "======================================================="
+echo ""
+echo "To reconfigure:"
+echo "  sudo dmt-configure"
+echo ""
+echo "To uninstall:"
+echo "  sudo dmt-uninstall"
+echo ""
+
+# Auto-launch in tray mode (headless build also supports --tray; pkg/tray/tray.go).
+if [ -n "$CONSOLE_USER" ] && [ "$CONSOLE_USER" != "root" ]; then
+    echo "Launching DMT Console for user: $CONSOLE_USER"
+    sudo -u "$CONSOLE_USER" nohup "$APP_DIR/console" --tray > /dev/null 2>&1 &
+    sleep 1
+    echo "DMT Console is now running in the system tray."
+else
+    echo "Please run 'dmt-console --tray' to start the console."
+fi
+
+exit 0

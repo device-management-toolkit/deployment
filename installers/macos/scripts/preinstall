@@ -1,0 +1,60 @@
+#!/bin/bash
+# Device Management Toolkit Console - Pre-installation script
+# Copyright (c) Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+set -e
+
+NEW_VERSION="VERSION_PLACEHOLDER"
+APP_DIR="/usr/local/device-management-toolkit"
+CONFIG_FILE="$APP_DIR/config/config.yml"
+PKG_IDS=("com.intel.dmt-console-ui" "com.intel.dmt-console-headless")
+
+# Build-time sanity: refuse to run if the version wasn't stamped (look for digits, not the literal placeholder string — build-time sed would rewrite that too).
+if ! [[ "$NEW_VERSION" =~ ^[0-9]+(\.[0-9]+)*([-.][A-Za-z0-9.-]+)?$ ]]; then
+    echo "Error: preinstall was not version-stamped at build time (got '$NEW_VERSION')." >&2
+    exit 1
+fi
+
+# Returns the higher of $1, $2 by sort -V (pre-release suffixes sort lexically, not semver).
+max_version() {
+    if [ -z "$1" ]; then echo "$2"; return; fi
+    if [ -z "$2" ]; then echo "$1"; return; fi
+    printf '%s\n' "$1" "$2" | sort -V | tail -n1
+}
+
+# Collect candidate "currently installed" versions from every source we trust.
+INSTALLED_VERSION=""
+for pkg_id in "${PKG_IDS[@]}"; do
+    v=$(pkgutil --pkg-info "$pkg_id" 2>/dev/null | awk '/^version:/ {print $2}')
+    INSTALLED_VERSION=$(max_version "$INSTALLED_VERSION" "$v")
+done
+# Fall back to the persisted config — survives `pkgutil --forget` and partial uninstalls.
+if [ -f "$CONFIG_FILE" ]; then
+    v=$(awk '/^[[:space:]]*version:[[:space:]]+[^"]+$/ {print $2; exit}' "$CONFIG_FILE")
+    INSTALLED_VERSION=$(max_version "$INSTALLED_VERSION" "$v")
+fi
+
+echo "Installing $NEW_VERSION (previously installed: ${INSTALLED_VERSION:-none})"
+
+if [ -n "$INSTALLED_VERSION" ] && [ "$INSTALLED_VERSION" != "$NEW_VERSION" ]; then
+    highest=$(max_version "$INSTALLED_VERSION" "$NEW_VERSION")
+    if [ "$highest" = "$INSTALLED_VERSION" ]; then
+        echo "Error: A newer version ($INSTALLED_VERSION) is already installed." >&2
+        echo "Uninstall it first: sudo dmt-uninstall" >&2
+        exit 1
+    fi
+fi
+
+# Stop the running console. Match both launch paths (binary and dmt-console symlink).
+pkill -f "/usr/local/device-management-toolkit/console" 2>/dev/null || true
+pkill -f "/usr/local/bin/dmt-console" 2>/dev/null || true
+sleep 1
+
+# Remove old symlink if it exists
+if [ -L "/usr/local/bin/dmt-console" ]; then
+    rm -f "/usr/local/bin/dmt-console"
+fi
+
+echo "Pre-installation cleanup completed."
+exit 0

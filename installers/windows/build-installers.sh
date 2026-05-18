@@ -75,9 +75,15 @@ if [ ! -f "$MAKENSIS" ]; then
     exit 1
 fi
 
-# Convert Unix-style paths to Windows paths for NSIS (backslashes)
-UI_BINARY_WIN=$(echo "$UI_BINARY" | sed 's|^/c|C:|' | sed 's|/|\\|g')
-HEADLESS_BINARY_WIN=$(echo "$HEADLESS_BINARY" | sed 's|^/c|C:|' | sed 's|/|\\|g')
+# Convert Unix-style paths to Windows paths for NSIS. cygpath handles all
+# drives and MSYS mount points correctly (Git Bash ships with it).
+if ! command -v cygpath >/dev/null 2>&1; then
+    echo "Error: cygpath not found; required for Unix→Windows path conversion." >&2
+    echo "Install Git for Windows / MSYS2 to get cygpath." >&2
+    exit 1
+fi
+UI_BINARY_WIN=$(cygpath -w "$UI_BINARY")
+HEADLESS_BINARY_WIN=$(cygpath -w "$HEADLESS_BINARY")
 
 echo "Building UI installer..."
 "$MAKENSIS" -DVERSION="$VERSION" -DVI_VERSION="$VI_VERSION" -DARCH="$ARCH" -DEDITION=ui -DBINARY="$UI_BINARY_WIN" "$NSI_FILE"

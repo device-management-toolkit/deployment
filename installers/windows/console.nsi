@@ -15,6 +15,7 @@
 
 ; Declare string functions we'll use (for installer)
 ${StrStr}
+${StrRep}
 
 ; Declare string functions for uninstaller (must use un. prefix)
 ${UnStrRep}
@@ -88,9 +89,12 @@ Var TLSEnabled
 Var UsernameLabel
 Var UsernameText
 Var UsernameValue
+Var UsernameYaml
 Var PasswordLabel
 Var PasswordText
 Var PasswordValue
+Var PasswordYaml
+Var JwtKey
 
 ;--------------------------------
 ; Interface Settings
@@ -173,10 +177,10 @@ Function ConfigPage
   ${NSD_CreateLabel} 0 112u 60u 12u "Password:"
   Pop $PasswordLabel
 
-  ${NSD_CreatePassword} 65u 110u 120u 14u "G@ppm0ym"
+  ${NSD_CreatePassword} 65u 110u 120u 14u ""
   Pop $PasswordText
 
-  ${NSD_CreateLabel} 190u 112u 100% 12u "(change from default!)"
+  ${NSD_CreateLabel} 190u 112u 100% 12u "(min 8 characters, required)"
   Pop $0
 
   nsDialogs::Show
@@ -187,6 +191,71 @@ Function ConfigPageLeave
   ${NSD_GetState} $TLSCheckbox $TLSEnabled
   ${NSD_GetText} $UsernameText $UsernameValue
   ${NSD_GetText} $PasswordText $PasswordValue
+
+  ; Validate port is an integer in valid TCP range (1-65535)
+  Push $PortValue
+  Call ValidatePort
+  Pop $0
+  ${If} $0 == "0"
+    MessageBox MB_ICONSTOP "HTTP port must be a number between 1 and 65535."
+    Abort
+  ${EndIf}
+
+  ; Validate username is non-empty
+  ${If} $UsernameValue == ""
+    MessageBox MB_ICONSTOP "Administrator username is required."
+    Abort
+  ${EndIf}
+
+  ; Validate password length
+  StrLen $0 $PasswordValue
+  ${If} $0 < 8
+    MessageBox MB_ICONSTOP "Administrator password must be at least 8 characters."
+    Abort
+  ${EndIf}
+FunctionEnd
+
+; Returns 1 on stack if input is integer in [1,65535], else 0.
+Function ValidatePort
+  Exch $0           ; port string
+  Push $1           ; index
+  Push $2           ; char
+  Push $3           ; length
+
+  StrLen $3 $0
+  ${If} $3 == 0
+    StrCpy $0 "0"
+    Goto vp_done
+  ${EndIf}
+
+  StrCpy $1 0
+  vp_loop:
+    ${If} $1 >= $3
+      Goto vp_range
+    ${EndIf}
+    StrCpy $2 $0 1 $1
+    ${If} $2 S< "0"
+    ${OrIf} $2 S> "9"
+      StrCpy $0 "0"
+      Goto vp_done
+    ${EndIf}
+    IntOp $1 $1 + 1
+    Goto vp_loop
+
+  vp_range:
+    IntCmp $0 0 vp_bad
+    IntCmp $0 65535 vp_ok vp_ok vp_bad
+  vp_bad:
+    StrCpy $0 "0"
+    Goto vp_done
+  vp_ok:
+    StrCpy $0 "1"
+
+  vp_done:
+  Pop $3
+  Pop $2
+  Pop $1
+  Exch $0
 FunctionEnd
 
 ;--------------------------------
@@ -287,6 +356,20 @@ Function WriteConfigFile
     StrCpy $0 "false"
   ${EndIf}
 
+  ; Escape YAML-special chars in user input (backslash first, then double-quote)
+  ${StrRep} $UsernameYaml $UsernameValue "\" "\\"
+  ${StrRep} $UsernameYaml $UsernameYaml '"' '\"'
+  ${StrRep} $PasswordYaml $PasswordValue "\" "\\"
+  ${StrRep} $PasswordYaml $PasswordYaml '"' '\"'
+
+  ; Generate a random JWT signing key per install (64 hex chars)
+  nsExec::ExecToStack 'powershell.exe -NoProfile -Command "[guid]::NewGuid().ToString(\"N\") + [guid]::NewGuid().ToString(\"N\")"'
+  Pop $2
+  Pop $JwtKey
+  ; Strip CRLF from PowerShell output
+  ${StrRep} $JwtKey $JwtKey "$\r" ""
+  ${StrRep} $JwtKey $JwtKey "$\n" ""
+
   FileOpen $1 "$INSTDIR\config\config.yml" w
 
   FileWrite $1 "app:$\r$\n"
@@ -321,9 +404,9 @@ Function WriteConfigFile
   FileWrite $1 "  password: $\"$\"$\r$\n"
   FileWrite $1 "auth:$\r$\n"
   FileWrite $1 "  disabled: false$\r$\n"
-  FileWrite $1 "  adminUsername: $\"$UsernameValue$\"$\r$\n"
-  FileWrite $1 "  adminPassword: $\"$PasswordValue$\"$\r$\n"
-  FileWrite $1 "  jwtKey: your_secret_jwt_key$\r$\n"
+  FileWrite $1 "  adminUsername: $\"$UsernameYaml$\"$\r$\n"
+  FileWrite $1 "  adminPassword: $\"$PasswordYaml$\"$\r$\n"
+  FileWrite $1 "  jwtKey: $JwtKey$\r$\n"
   FileWrite $1 "  jwtExpiration: 24h0m0s$\r$\n"
   FileWrite $1 "  redirectionJWTExpiration: 5m0s$\r$\n"
   FileWrite $1 "  clientId: $\"$\"$\r$\n"
@@ -363,16 +446,17 @@ Section "Uninstall"
     DeleteRegValue HKLM "Software\Microsoft\Windows\CurrentVersion\Run" "DMTConsole"
   ${EndIf}
 
-  ; Remove from PATH if we added it
+  ; Remove from PATH if we added it. Tokenize on ';' and drop only the
+  ; entry that equals $INSTDIR (case-insensitive), so we don't corrupt
+  ; other entries that contain $INSTDIR as a substring or prefix.
   ReadRegStr $0 HKLM "Software\DeviceManagementToolkit\Console" "AddedToPath"
   ${If} $0 == "1"
     ReadRegStr $1 HKLM "SYSTEM\CurrentControlSet\Control\Session Manager\Environment" "Path"
-    ; Remove our path (try both with and without trailing semicolon)
-    ${UnStrRep} $2 $1 ";$INSTDIR" ""
-    ${UnStrRep} $2 $2 "$INSTDIR;" ""
-    ${UnStrRep} $2 $2 "$INSTDIR" ""
+    Push $1
+    Push "$INSTDIR"
+    Call un.RemovePathEntry
+    Pop $2
     WriteRegExpandStr HKLM "SYSTEM\CurrentControlSet\Control\Session Manager\Environment" "Path" "$2"
-    ; Broadcast environment change
     SendMessage ${HWND_BROADCAST} ${WM_SETTINGCHANGE} 0 "STR:Environment" /TIMEOUT=5000
   ${EndIf}
 
@@ -419,7 +503,7 @@ Function .onInit
   StrCpy $PortValue "8181"
   StrCpy $TLSEnabled ${BST_CHECKED}
   StrCpy $UsernameValue "standalone"
-  StrCpy $PasswordValue "G@ppm0ym"
+  StrCpy $PasswordValue ""
 
   ; Check for admin rights
   UserInfo::GetAccountType
@@ -452,4 +536,86 @@ Function un.onInit
   nsExec::Exec 'taskkill /F /IM console.exe'
   Pop $0
   Sleep 1500
+FunctionEnd
+
+; un.RemovePathEntry: takes (path-string, entry-to-remove) on stack,
+; returns rebuilt path-string on stack. Splits on ';' and drops entries
+; that equal the target entry (case-insensitive, trailing '\' ignored).
+Function un.RemovePathEntry
+  Exch $R0           ; target entry
+  Exch
+  Exch $R1           ; full PATH
+  Push $R2           ; result accumulator
+  Push $R3           ; current token
+  Push $R4           ; remaining path
+  Push $R5           ; semicolon index
+  Push $R6           ; remaining length
+  Push $R7           ; normalized target
+  Push $R8           ; scratch / normalized token
+
+  ; Normalize target: strip a single trailing backslash if present
+  StrCpy $R7 $R0
+  StrCpy $R8 $R7 "" -1
+  ${If} $R8 == "\"
+    StrCpy $R7 $R7 -1
+  ${EndIf}
+
+  StrCpy $R2 ""
+  StrCpy $R4 $R1
+
+  rpe_loop:
+    ${If} $R4 == ""
+      Goto rpe_done
+    ${EndIf}
+    StrCpy $R5 0
+    StrLen $R6 $R4
+    rpe_find:
+      ${If} $R5 >= $R6
+        StrCpy $R3 $R4
+        StrCpy $R4 ""
+        Goto rpe_have_token
+      ${EndIf}
+      StrCpy $R8 $R4 1 $R5
+      ${If} $R8 == ";"
+        StrCpy $R3 $R4 $R5
+        IntOp $R5 $R5 + 1
+        StrCpy $R4 $R4 "" $R5
+        Goto rpe_have_token
+      ${EndIf}
+      IntOp $R5 $R5 + 1
+      Goto rpe_find
+
+    rpe_have_token:
+      ${If} $R3 == ""
+        Goto rpe_loop
+      ${EndIf}
+      ; Strip a single trailing backslash for comparison
+      StrCpy $R8 $R3 "" -1
+      ${If} $R8 == "\"
+        StrCpy $R8 $R3 -1
+      ${Else}
+        StrCpy $R8 $R3
+      ${EndIf}
+      ; LogicLib '==' is case-insensitive — drops matching entry
+      ${If} $R8 == $R7
+        Goto rpe_loop
+      ${EndIf}
+      ${If} $R2 == ""
+        StrCpy $R2 $R3
+      ${Else}
+        StrCpy $R2 "$R2;$R3"
+      ${EndIf}
+      Goto rpe_loop
+
+  rpe_done:
+  Pop $R8
+  Pop $R7
+  Pop $R6
+  Pop $R5
+  Pop $R4
+  Pop $R3
+  Exch $R2
+  Exch
+  Pop $R1
+  Pop $R0
 FunctionEnd

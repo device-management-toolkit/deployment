@@ -1,28 +1,23 @@
-.PHONY: build run
+.PHONY: up up-keycloak down clean
 
-build:
-	read -p "Enter IP Address:" ip; \
-	sed -i -e "s|\"common_name\": \".*|\"common_name\": \"$$ip\"\,|g" ./mps/.mpsrc -e "s|localhost|$$ip|g" ./sample-web-ui/src/environments/environment.ts 
-	cd ./mps && npm install
-	cd ./rps && npm install
-	cd ./sample-web-ui && npm install
+COMPOSE_KEYCLOAK = -f docker-compose.yml -f docker-compose.keycloak.yml
 
-MICROSERVICES= \
-	run-ui & \
-	run-mps & \
-	run-rps  \
+# Simple console auth (default)
+up:
+	@./scripts/bootstrap-env.sh
+	@docker compose up -d --build
+	@./scripts/open-app.sh
 
-.PHONY: $(MICROSERVICES)
+# Bundled Keycloak OIDC
+up-keycloak:
+	@./scripts/bootstrap-env.sh
+	@docker compose $(COMPOSE_KEYCLOAK) up -d --build
+	@./scripts/open-app.sh keycloak
 
-run-rps: 
-	(cd ./rps && npm run devx)
+# Both -f files so it tears down whichever mode is running
+down:
+	@docker compose $(COMPOSE_KEYCLOAK) down
 
-run-ui: 
-	(cd ./sample-web-ui && npm start)
-
-run-mps: 
-	(cd ./mps && npm run devx) 
-
-run:
-	echo "run each service in a separate terminal window (i.e. make run-ui)"
-
+clean:
+	@docker compose $(COMPOSE_KEYCLOAK) down -v
+	@rm -rf generated/

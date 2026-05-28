@@ -1,0 +1,98 @@
+#!/bin/sh
+# Device Management Toolkit Console - uninstall wrapper
+# Copyright (c) Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+# Picks the right package manager and prompts whether to remove config
+# (matches the Windows installer's "remove user data?" prompt).
+
+set -e
+
+if [ "$(id -u)" -ne 0 ]; then
+    echo "dmt-uninstall must be run as root (try: sudo dmt-uninstall)" >&2
+    exit 1
+fi
+
+detect_pm() {
+    if   command -v apt-get >/dev/null 2>&1; then echo apt
+    elif command -v dnf     >/dev/null 2>&1; then echo dnf
+    elif command -v yum     >/dev/null 2>&1; then echo yum
+    else echo unknown
+    fi
+}
+
+PM=$(detect_pm)
+if [ "$PM" = "unknown" ]; then
+    echo "Could not detect apt or dnf. Remove the package manually." >&2
+    exit 1
+fi
+
+PKG=
+if dpkg -s dmt-console >/dev/null 2>&1; then
+    PKG=dmt-console
+elif dpkg -s dmt-console-headless >/dev/null 2>&1; then
+    PKG=dmt-console-headless
+elif rpm -q dmt-console >/dev/null 2>&1; then
+    PKG=dmt-console
+elif rpm -q dmt-console-headless >/dev/null 2>&1; then
+    PKG=dmt-console-headless
+else
+    echo "Neither dmt-console nor dmt-console-headless is installed." >&2
+    exit 1
+fi
+
+# Stop any tray instance before removal.
+pkill -x dmt-console >/dev/null 2>&1 || true
+
+printf "Remove configuration (/opt/dmt-console)? [y/N]: "
+read answer
+case "$answer" in
+    y|Y|yes|YES) PURGE=1 ;;
+    *) PURGE=0 ;;
+esac
+
+# Opt-in removal of the desktop user's per-user data (DB, profiles, creds) under
+# their ~/.config. Resolve the real user via $SUDO_USER ($HOME is root's here).
+REMOVE_DATA=0
+DATA_DIR=
+TARGET_USER="${SUDO_USER:-$(logname 2>/dev/null || true)}"
+if [ -n "$TARGET_USER" ] && [ "$TARGET_USER" != "root" ]; then
+    USER_HOME=$(getent passwd "$TARGET_USER" 2>/dev/null | cut -d: -f6)
+    if [ -n "$USER_HOME" ] && [ -d "$USER_HOME/.config/device-management-toolkit" ]; then
+        DATA_DIR="$USER_HOME/.config/device-management-toolkit"
+        printf "Also remove %s's Console data (devices, profiles, database) at %s? [y/N]: " \
+            "$TARGET_USER" "$DATA_DIR"
+        read data_answer
+        case "$data_answer" in
+            y|Y|yes|YES) REMOVE_DATA=1 ;;
+        esac
+    fi
+fi
+
+case "$PM" in
+    apt)
+        if [ "$PURGE" = "1" ]; then
+            apt-get purge -y "$PKG"
+        else
+            apt-get remove -y "$PKG"
+        fi
+        ;;
+    dnf|yum)
+        if [ "$PURGE" = "0" ]; then
+            backup_dir="/root/dmt-console.backup.$(date +%Y%m%d-%H%M%S)"
+            mkdir -p "$backup_dir"
+            cp -a /opt/dmt-console/config "$backup_dir/" 2>/dev/null || true
+            echo "Config backed up to $backup_dir"
+        fi
+        "$PM" remove -y "$PKG"
+        ;;
+esac
+
+echo ""
+if [ "$REMOVE_DATA" = "1" ] && [ -n "$DATA_DIR" ]; then
+    rm -rf "$DATA_DIR"
+    echo "Removed per-user Console data: $DATA_DIR"
+else
+    echo "Per-user Console state under \$XDG_CONFIG_HOME (default ~/.config/device-management-toolkit/)"
+    echo "is left intact. Remove it manually if no longer needed."
+fi

@@ -1,0 +1,129 @@
+#*********************************************************************
+# Copyright (c) Intel Corporation 2018-2026
+# SPDX-License-Identifier: Apache-2.0
+#*********************************************************************
+
+_format_version: "3.0"
+_transform: true
+
+services:
+# Console: subsumes legacy MPS API + KVM/SOL/IDER relay
+- name: console
+  host: console
+  port: 8181
+  protocol: http
+  tags:
+  - console
+  routes:
+  - name: console-login-route
+    strip_path: false
+    paths:
+    - /api/v1/authorize
+  - name: console-api-route
+    strip_path: false
+    paths:
+    - /api
+  - name: console-health-route
+    strip_path: false
+    paths:
+    - /healthz
+  - name: console-version-route
+    strip_path: false
+    paths:
+    - /version
+  - name: console-relay-route
+    strip_path: false
+    paths:
+    - /relay/webrelay.ashx
+
+# Console CIRA: L4 TCP passthrough from edge to console:4433
+- name: console-cira
+  host: console
+  port: 4433
+  protocol: tcp
+  tags:
+  - console
+  routes:
+  - name: console-cira-route
+    protocols:
+    - tcp
+    destinations:
+    - port: 4433
+
+# RPS WebSocket (provisioning)
+- name: rps-ws
+  host: rps
+  port: 8080
+  tags:
+  - rps
+  routes:
+  - name: rps-activate-route
+    strip_path: true
+    paths:
+    - /activate
+  - name: rps-deactivate-route
+    strip_path: true
+    paths:
+    - /deactivate
+  - name: rps-maintenance-route
+    strip_path: true
+    paths:
+    - /maintenance
+
+# uncomment to use with enterprise assistant
+# - name: rps-ea
+#   host: rps
+#   port: 8082
+#   tags:
+#   - rps
+#   routes:
+#   - name: rps-ea-route
+#     strip_path: true
+#     paths:
+#     - /ea
+
+- name: vault-api
+  host: vault
+  port: 8200
+  tags:
+  - vault
+  routes:
+  - name: vault-route
+    strip_path: true
+    paths:
+    - /vault
+
+- name: web
+  host: webui
+  port: 80
+  tags:
+  - web
+  routes:
+  - name: web-route
+    paths:
+    - /
+
+plugins:
+- name: cors
+
+- name: jwt
+  route: console-api-route
+  config:
+    key_claim_name: iss
+    claims_to_verify:
+    - exp
+- name: jwt
+  route: console-relay-route
+  config:
+    key_claim_name: iss
+    claims_to_verify:
+    - exp
+
+consumers:
+  - username: keycloak
+jwt_secrets:
+  - consumer: keycloak
+    key: https://__MPS_COMMON_NAME__:8443/realms/console
+    algorithm: RS256
+    rsa_public_key: |
+__KEYCLOAK_PUBKEY__

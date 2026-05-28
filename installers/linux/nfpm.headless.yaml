@@ -1,0 +1,111 @@
+# Device Management Toolkit Console - nFPM manifest (Headless edition)
+# Copyright (c) Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+# Same install layout as the UI edition; differs only in the shipped binary
+# (built with -tags='tray noui') and package metadata. Conflicts with
+# dmt-console so both editions cannot be installed simultaneously.
+
+name: dmt-console-headless
+arch: amd64
+platform: linux
+version: ${VERSION}
+version_schema: semver
+section: net
+priority: optional
+maintainer: "Intel Device Management Toolkit <dmt@intel.com>"
+description: |
+  Device Management Toolkit Console - on-prem AMT/MEI management server.
+  Headless edition (API only, no embedded web UI) with system tray.
+vendor: Intel Corporation
+homepage: https://device-management-toolkit.github.io/
+license: Apache-2.0
+
+provides:
+  - dmt-console
+conflicts:
+  - dmt-console
+replaces:
+  - dmt-console
+
+depends:
+  - openssl
+  - libgtk-3-0
+  - libayatana-appindicator3-1
+
+overrides:
+  rpm:
+    depends:
+      - openssl
+      - gtk3
+      - libayatana-appindicator-gtk3
+
+contents:
+  - src: ./build/console_linux_x64_headless_tray
+    dst: /opt/dmt-console/dmt-console
+    file_info:
+      mode: 0755
+      owner: root
+      group: root
+
+  - src: /opt/dmt-console/dmt-console
+    dst: /usr/bin/dmt-console
+    type: symlink
+
+  - src: ./bin/dmt-configure
+    dst: /usr/bin/dmt-configure
+    file_info:
+      mode: 0755
+      owner: root
+      group: root
+
+  - src: ./bin/dmt-uninstall
+    dst: /usr/bin/dmt-uninstall
+    file_info:
+      mode: 0755
+      owner: root
+      group: root
+
+  - src: ./autostart/dmt-console.desktop
+    dst: /etc/xdg/autostart/dmt-console.desktop
+    file_info:
+      mode: 0644
+      owner: root
+      group: root
+
+  - src: ./config/config.yml.tmpl
+    dst: /usr/share/dmt-console/config.yml.tmpl
+    file_info:
+      mode: 0644
+      owner: root
+      group: root
+
+  - src: ../../LICENSE
+    dst: /usr/share/doc/dmt-console/copyright
+    file_info:
+      mode: 0644
+
+  - src: ./README.md
+    dst: /usr/share/doc/dmt-console/README.md
+    file_info:
+      mode: 0644
+
+  - dst: /opt/dmt-console
+    type: dir
+    file_info:
+      mode: 0755
+      owner: root
+      group: root
+
+scripts:
+  preinstall: ./build/preinstall.sh
+  postinstall: ./scripts/postinstall.sh
+  preremove: ./scripts/preremove.sh
+  postremove: ./scripts/postremove.sh
+
+rpm:
+  compression: zstd
+  group: Applications/System
+
+deb:
+  compression: zstd

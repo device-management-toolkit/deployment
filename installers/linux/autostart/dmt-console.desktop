@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Device Management Toolkit Console
+Comment=System tray for Device Management Toolkit Console
+Exec=/usr/bin/dmt-console --tray
+Terminal=false
+Categories=Network;System;
+X-GNOME-Autostart-enabled=true
+NoDisplay=false

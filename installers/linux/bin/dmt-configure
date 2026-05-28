@@ -1,0 +1,125 @@
+#!/bin/sh
+# Device Management Toolkit Console - interactive reconfigure tool
+# Copyright (c) Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+# Reads admin port / TLS / admin credentials from the operator, rewrites
+# the relevant fields in the config the binary actually reads
+# (/opt/dmt-console/config/config.yml), and restarts a running tray instance
+# so the new values take effect.
+
+set -e
+
+CONFIG_FILE=/opt/dmt-console/config/config.yml
+
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo "Config file not found: $CONFIG_FILE" >&2
+    echo "Is dmt-console installed?" >&2
+    exit 1
+fi
+
+# The config is chowned to the desktop user, so its owner needs no sudo; only
+# require elevation when the current user can't write it (e.g. server install).
+if [ ! -w "$CONFIG_FILE" ]; then
+    echo "Cannot write $CONFIG_FILE as the current user." >&2
+    echo "Re-run as the config owner, or with sudo." >&2
+    exit 1
+fi
+
+current_value() {
+    grep -E "^\s*$1:" "$CONFIG_FILE" | head -n1 | \
+        sed -E "s/^\s*$1:\s*\"?([^\"]*)\"?\s*$/\1/"
+}
+
+cur_port=$(current_value port)
+cur_tls=$(current_value enabled)
+cur_user=$(current_value adminUsername)
+
+[ -z "$cur_port" ] && cur_port=8181
+[ -z "$cur_tls" ] && cur_tls=true
+[ -z "$cur_user" ] && cur_user=standalone
+
+echo "Reconfigure Device Management Toolkit Console"
+echo "Press Enter to keep the current value shown in [brackets]."
+echo ""
+
+printf "HTTP port [%s]: " "$cur_port"
+read new_port
+[ -z "$new_port" ] && new_port="$cur_port"
+case "$new_port" in
+    ''|*[!0-9]*) echo "Invalid port: $new_port" >&2; exit 1 ;;
+esac
+if [ "$new_port" -lt 1 ] || [ "$new_port" -gt 65535 ]; then
+    echo "Port must be between 1 and 65535" >&2
+    exit 1
+fi
+
+printf "Enable TLS (true/false) [%s]: " "$cur_tls"
+read new_tls
+[ -z "$new_tls" ] && new_tls="$cur_tls"
+case "$new_tls" in
+    true|false) ;;
+    *) echo "TLS must be true or false" >&2; exit 1 ;;
+esac
+
+printf "Admin username [%s]: " "$cur_user"
+read new_user
+[ -z "$new_user" ] && new_user="$cur_user"
+
+printf "New admin password (leave blank to keep current): "
+stty -echo 2>/dev/null || true
+read new_pass
+stty echo 2>/dev/null || true
+echo ""
+
+tmpfile=$(mktemp)
+trap 'rm -f "$tmpfile"' EXIT
+cp "$CONFIG_FILE" "$tmpfile"
+
+sed -i \
+    -e "s|^\(\s*port:\s*\).*|\1\"$new_port\"|" \
+    -e "s|^\(\s*enabled:\s*\).*|\1$new_tls|" \
+    -e "s|^\(\s*adminUsername:\s*\).*|\1\"$new_user\"|" \
+    "$tmpfile"
+
+if [ -n "$new_pass" ]; then
+    esc_pass=$(printf '%s' "$new_pass" | sed -e 's/[\\&|]/\\&/g')
+    sed -i -e "s|^\(\s*adminPassword:\s*\).*|\1\"$esc_pass\"|" "$tmpfile"
+fi
+
+# Write back in place (truncate, don't replace) so we only need write access to
+# the file, not its root-owned directory. Owner and mode are preserved.
+cat "$tmpfile" > "$CONFIG_FILE"
+echo "Config updated: $CONFIG_FILE"
+
+# Restart the tray if one is running. Match by process name so we catch the
+# backgrounded daemon and any instance launched via the /usr/bin symlink.
+if pgrep -x dmt-console >/dev/null 2>&1; then
+    echo "Restarting tray..."
+    tray_owner=$(ps -o user= -p "$(pgrep -x dmt-console | head -n1)" 2>/dev/null)
+    pkill -x dmt-console >/dev/null 2>&1 || true
+    sleep 1
+    if [ "$(id -u)" -ne 0 ]; then
+        nohup /usr/bin/dmt-console --tray >/dev/null 2>&1 &
+    elif [ -n "$tray_owner" ] && [ "$tray_owner" != "root" ]; then
+        TRAY_UID=$(id -u "$tray_owner" 2>/dev/null || true)
+        if [ -n "$TRAY_UID" ] && [ -d "/run/user/$TRAY_UID" ]; then
+            SESSION_ENV=$(su - "$tray_owner" -c \
+                "XDG_RUNTIME_DIR=/run/user/$TRAY_UID systemctl --user show-environment 2>/dev/null" 2>/dev/null)
+            GUI_DISPLAY=$(printf '%s\n' "$SESSION_ENV" | sed -n 's/^DISPLAY=//p' | head -n1)
+            GUI_WAYLAND=$(printf '%s\n' "$SESSION_ENV" | sed -n 's/^WAYLAND_DISPLAY=//p' | head -n1)
+            if [ -z "$GUI_DISPLAY" ] && [ -z "$GUI_WAYLAND" ]; then
+                GUI_SESSION=$(loginctl show-user "$tray_owner" -p Display --value 2>/dev/null)
+                [ -n "$GUI_SESSION" ] && \
+                    GUI_DISPLAY=$(loginctl show-session "$GUI_SESSION" -p Display --value 2>/dev/null)
+            fi
+            su - "$tray_owner" -c "
+                export XDG_RUNTIME_DIR=/run/user/$TRAY_UID
+                export DBUS_SESSION_BUS_ADDRESS=\"unix:path=\$XDG_RUNTIME_DIR/bus\"
+                ${GUI_DISPLAY:+export DISPLAY='$GUI_DISPLAY'}
+                ${GUI_WAYLAND:+export WAYLAND_DISPLAY='$GUI_WAYLAND'}
+                nohup /usr/bin/dmt-console --tray >/dev/null 2>&1 &
+            " >/dev/null 2>&1 || true
+        fi
+    fi
+fi

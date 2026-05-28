@@ -1,0 +1,49 @@
+app:
+  name: console
+  repo: device-management-toolkit/console
+  version: "@VERSION@"
+  encryption_key: "@ENC_KEY@"
+  allow_insecure_ciphers: false
+http:
+  host: localhost
+  port: "@PORT@"
+  ws_compression: false
+  tls:
+    enabled: @TLS@
+    certFile: ""
+    keyFile: ""
+  allowed_origins:
+    - "*"
+  allowed_headers:
+    - "*"
+logger:
+  log_level: info
+secrets:
+  address: http://localhost:8200
+  token: ""
+postgres:
+  pool_max: 2
+  url: ""
+ea:
+  url: http://localhost:8000
+  username: ""
+  password: ""
+auth:
+  disabled: false
+  adminUsername: "@ADMIN_USER@"
+  adminPassword: "@ADMIN_PASS@"
+  jwtKey: "@JWT@"
+  jwtExpiration: 24h0m0s
+  redirectionJWTExpiration: 5m0s
+  clientId: ""
+  issuer: ""
+  ui:
+    clientId: ""
+    issuer: ""
+    scope: ""
+    redirectUri: ""
+    responseType: "code"
+    requireHttps: false
+    strictDiscoveryDocumentValidation: true
+ui:
+  externalUrl: ""

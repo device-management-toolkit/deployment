@@ -1,0 +1,84 @@
+#/*********************************************************************
+# Copyright (c) Intel Corporation 2020
+# SPDX-License-Identifier: Apache-2.0
+#**********************************************************************/
+# Keycloak OIDC overlay for the simple base stack. Apply on top of docker-compose.yml:
+#   docker compose -f docker-compose.yml -f docker-compose.keycloak.yml up -d --build
+# or just `make up-keycloak`. It adds the init + keycloak services and repoints
+# console/webui/kong from the built-in HS256 login to Keycloak OIDC (RS256).
+
+services:
+  console:
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    environment:
+      AUTH_CLIENT_ID: device-management-toolkit
+      AUTH_ISSUER: https://${MPS_COMMON_NAME}:8443/realms/console
+      AUTH_TLS_SKIP_VERIFY: "true"
+      AUTH_UI_CLIENT_ID: device-management-toolkit
+      AUTH_UI_ISSUER: https://${MPS_COMMON_NAME}:8443/realms/console
+      AUTH_UI_REDIRECT_URI: https://${MPS_COMMON_NAME}/
+      AUTH_UI_SCOPE: openid profile email
+      AUTH_UI_RESPONSE_TYPE: code
+
+  webui:
+    environment:
+      AUTH_MODE_ENABLED: "true"
+      CLIENTID: device-management-toolkit
+      ISSUER: https://${MPS_COMMON_NAME}:8443/realms/console
+      REDIRECTURI: https://${MPS_COMMON_NAME}/
+      SCOPE: openid profile email
+
+  init:
+    build: ./init
+    environment:
+      MPS_COMMON_NAME: ${MPS_COMMON_NAME}
+      CONSOLE_USER_PASSWORD: ${CONSOLE_USER_PASSWORD}
+    volumes:
+      - ./generated:/generated
+      - ./keycloak/realm-export.json.tpl:/templates/realm-export.json.tpl:ro
+      - ./kong.yaml.tpl:/templates/kong.yaml.tpl:ro
+
+  keycloak:
+    restart: always
+    image: quay.io/keycloak/keycloak:26.0
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    command: ["start-dev", "--import-realm"]
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8443"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_HOSTNAME: https://${MPS_COMMON_NAME}:8443
+      KC_HOSTNAME_STRICT: "false"
+      KC_HTTPS_PORT: "8443"
+      KC_HTTP_ENABLED: "false"
+      KC_HTTPS_CERTIFICATE_FILE: /etc/keycloak-certs/tls.crt
+      KC_HTTPS_CERTIFICATE_KEY_FILE: /etc/keycloak-certs/tls.key
+    volumes:
+      - ./generated/keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+      - ./generated/keycloak/tls:/etc/keycloak-certs:ro
+    networks:
+      - dmtnetwork
+    ports:
+      - "8443:8443"
+
+  # Repoint Kong from its HS256 self-templating command to the RS256 config
+  # the init container renders into ./generated. The base kong.yaml -> kong.yml.tpl
+  # mount and AUTH_JWT_KEY env stay present but unused here.
+  kong:
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    command: ["kong", "docker-start"]
+    environment:
+      - KONG_DECLARATIVE_CONFIG=/home/kong/kong.yml
+    volumes:
+      - ./generated/kong/kong.yaml:/home/kong/kong.yml:ro

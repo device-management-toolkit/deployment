@@ -92,14 +92,17 @@ else
 
     build_web_ui
 
+    # Stamp the version into the binary (matches the Console release workflow).
+    LDFLAGS="-s -w -X 'github.com/device-management-toolkit/console/internal/app.Version=$VERSION'"
+
     echo "Building UI binary with tray (CGO_ENABLED=1)..."
     (cd "$CONSOLE_SRC" && CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
-        go build -tags=tray -ldflags "-s -w" -trimpath -o "$UI_BINARY" ./cmd/app)
+        go build -tags=tray -ldflags "$LDFLAGS" -trimpath -o "$UI_BINARY" ./cmd/app)
     echo "  Built: $UI_BINARY"
 
     echo "Building headless binary with tray (CGO_ENABLED=1, -tags='tray noui')..."
     (cd "$CONSOLE_SRC" && CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
-        go build -tags='tray noui' -ldflags "-s -w" -trimpath -o "$HEADLESS_BINARY" ./cmd/app)
+        go build -tags='tray noui' -ldflags "$LDFLAGS" -trimpath -o "$HEADLESS_BINARY" ./cmd/app)
     echo "  Built: $HEADLESS_BINARY"
 fi
 

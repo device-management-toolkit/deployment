@@ -1,0 +1,104 @@
+name: Build Linux Installer
+
+on:
+  workflow_dispatch:
+    inputs:
+      console_version:
+        description: "Console release tag to package (e.g. v1.26.0). Empty = latest."
+        required: false
+        default: ""
+      installer_version:
+        description: "Installer version string baked into the packages. Empty = derived from console tag."
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build deb/rpm
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout deployment repo
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Resolve console version
+        id: ver
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REQUESTED: ${{ inputs.console_version }}
+          INSTALLER_VERSION_INPUT: ${{ inputs.installer_version }}
+        run: |
+          set -euo pipefail
+          if [ -n "$REQUESTED" ]; then
+            tag="$REQUESTED"
+          else
+            tag=$(gh release view --repo device-management-toolkit/console --json tagName -q .tagName)
+          fi
+          if [ -n "$INSTALLER_VERSION_INPUT" ]; then
+            installer_version="$INSTALLER_VERSION_INPUT"
+          else
+            installer_version="${tag#v}"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "installer_version=$installer_version" >> "$GITHUB_OUTPUT"
+          echo "Console tag: $tag"
+          echo "Installer version: $installer_version"
+
+      - name: Checkout console source at release tag
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: device-management-toolkit/console
+          ref: ${{ steps.ver.outputs.tag }}
+          path: services/console
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5.2.0
+        with:
+          go-version-file: services/console/go.mod
+
+      - name: Install build dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          # CGO system-tray deps (libgtk-3-dev + appindicator), matches the tray build.
+          sudo apt-get install -y libgtk-3-dev libayatana-appindicator3-dev
+          # nfpm produces the .deb / .rpm packages.
+          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Build deb/rpm packages
+        env:
+          INSTALLER_VERSION: ${{ steps.ver.outputs.installer_version }}
+        run: |
+          chmod +x ./installers/linux/build-packages.sh
+          ./installers/linux/build-packages.sh "$INSTALLER_VERSION" amd64
+
+      - name: Publish .deb installers to release
+        uses: svenstaro/upload-release-action@29e53e917877a24fad85510ded594ab3c9ca12de # v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: dist/linux/*.deb
+          file_glob: true
+          tag: v${{ steps.ver.outputs.installer_version }}
+          overwrite: true
+          body: "Device Management Toolkit Console installers"
+
+      - name: Publish .rpm installers to release
+        uses: svenstaro/upload-release-action@29e53e917877a24fad85510ded594ab3c9ca12de # v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: dist/linux/*.rpm
+          file_glob: true
+          tag: v${{ steps.ver.outputs.installer_version }}
+          overwrite: true
+          body: "Device Management Toolkit Console installers"

@@ -20,9 +20,38 @@ OUTPUT_DIR="$REPO_ROOT/dist/linux"
 STAGE_DIR="$SCRIPT_DIR/build"
 
 CONSOLE_SRC="$REPO_ROOT/services/console"
+WEBUI_SRC="$REPO_ROOT/services/sample-web-ui"
+UI_EMBED_DIR="$CONSOLE_SRC/internal/controller/httpapi/ui"
 BINARY_DIR="${BINARY_DIR:-$OUTPUT_DIR}"
 UI_BINARY="$BINARY_DIR/console_linux_${ARCH}_tray"
 HEADLESS_BINARY="$BINARY_DIR/console_linux_${ARCH}_headless_tray"
+
+# Build the Angular web UI and stage it into the console's go:embed dir before
+# compiling the full binary. That dir is gitignored (only .gitkeep is tracked),
+# so a from-source build must populate it or the full binary ships an empty UI.
+# Headless (-tags=noui) drops the embed entirely. Mirrors the Console release
+# workflow's build-enterprise + move-into-httpapi/ui step.
+build_web_ui() {
+    if [ ! -f "$WEBUI_SRC/package.json" ]; then
+        echo "Error: sample-web-ui source not found at $WEBUI_SRC" >&2
+        echo "Initialize the submodule:" >&2
+        echo "    git submodule update --init services/sample-web-ui" >&2
+        exit 1
+    fi
+    if ! command -v npm >/dev/null 2>&1; then
+        echo "Error: npm not found on PATH (needed to build the embedded web UI)" >&2
+        exit 1
+    fi
+
+    echo "Building embedded web UI (npm run build-enterprise)..."
+    (cd "$WEBUI_SRC" && npm ci && npm run build-enterprise)
+
+    echo "Staging web UI into $UI_EMBED_DIR ..."
+    rm -rf "$UI_EMBED_DIR"
+    mkdir -p "$UI_EMBED_DIR"
+    touch "$UI_EMBED_DIR/.gitkeep"
+    cp -R "$WEBUI_SRC/ui/browser/." "$UI_EMBED_DIR/"
+}
 
 echo "Building Linux deb/rpm packages..."
 echo "Version: $VERSION"
@@ -60,6 +89,8 @@ else
     fi
 
     mkdir -p "$BINARY_DIR"
+
+    build_web_ui
 
     echo "Building UI binary with tray (CGO_ENABLED=1)..."
     (cd "$CONSOLE_SRC" && CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \

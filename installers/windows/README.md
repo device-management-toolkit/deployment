@@ -18,6 +18,9 @@ Prereqs on the build host:
 - NSIS 3.x at the default install path
 - Go 1.25+ — only when building binaries from source (see below); matches
   `services/console/go.mod`
+- Node.js 20+ and `npm` — only when building from source; the UI edition
+  builds the Angular web UI (`npm run build-enterprise`) and stages it into
+  the console's `go:embed` dir before compiling
 - A mingw-w64 `gcc` on `PATH` — only when building from source; both
   editions use `CGO_ENABLED=1` for the tray dependency
 
@@ -36,18 +39,24 @@ Outputs to `dist/windows/`:
 ### Binary sourcing
 
 The script needs two prebuilt binaries:
-`console_windows_<ARCH>.exe` and `console_windows_<ARCH>_headless.exe`.
+`console_windows_<ARCH>.exe` and `console_windows_<ARCH>_headless.exe`. Release
+binaries already have the web UI embedded; a from-source build of the UI
+edition rebuilds it (see below).
 
 - **Release-train (preferred):** point `BINARY_DIR` at a directory holding
-  the binaries from a tagged Console release. No Go/CGO toolchain needed.
+  the binaries from a tagged Console release. No Go/CGO/Node toolchain needed.
   ```bash
   BINARY_DIR=/c/path/to/release/windows ./build-installers.sh 3.1.0 x64
   ```
-- **Local dev:** initialize the `services/console` submodule and the script
-  will build the binaries from source (needs Go + a CGO-capable mingw
-  toolchain).
+- **Local dev:** initialize the `services/console` and `services/sample-web-ui`
+  submodules and the script will build the binaries from source (needs Go + a
+  CGO-capable mingw toolchain + Node.js). For the UI edition it runs
+  `npm run build-enterprise` in `sample-web-ui` and stages the output into
+  `services/console/internal/controller/httpapi/ui` (the `go:embed` dir, which
+  is gitignored apart from `.gitkeep`) before compiling — matching the Console
+  release workflow. Without this the full binary would ship an empty web UI.
   ```bash
-  git submodule update --init services/console
+  git submodule update --init services/console services/sample-web-ui
   ./build-installers.sh
   ```
 

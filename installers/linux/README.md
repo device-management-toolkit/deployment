@@ -18,6 +18,9 @@ Prereqs on the build host:
 - `nfpm` — `go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest`
 - Go 1.25+ — only when building binaries from source; matches
   `services/console/go.mod`
+- Node.js 20+ and `npm` — only when building from source; the UI edition
+  builds the Angular web UI (`npm run build-enterprise`) and stages it into
+  the console's `go:embed` dir before compiling
 - `gcc`, `libgtk-3-dev`, `libayatana-appindicator3-dev` — only when
   building from source; both editions use `CGO_ENABLED=1` for the tray
   dependency (mirrors the macOS / Windows tray builds)
@@ -39,17 +42,24 @@ Outputs to `dist/linux/`:
 ### Binary sourcing
 
 The script needs two prebuilt binaries:
-`console_linux_<ARCH>_tray` and `console_linux_<ARCH>_headless_tray`.
+`console_linux_<ARCH>_tray` and `console_linux_<ARCH>_headless_tray`. Release
+binaries already have the web UI embedded; a from-source build of the UI
+edition rebuilds it (see below).
 
 - **Release-train (preferred):** point `BINARY_DIR` at a directory holding
-  the binaries from a tagged Console release. No Go/CGO toolchain needed.
+  the binaries from a tagged Console release. No Go/CGO/Node toolchain needed.
   ```bash
   BINARY_DIR=/path/to/release/linux ./build-packages.sh 3.1.0 amd64
   ```
-- **Local dev:** initialize the `services/console` submodule and the script
-  will build the binaries from source.
+- **Local dev:** initialize the `services/console` and `services/sample-web-ui`
+  submodules and the script will build the binaries from source. For the UI
+  edition it runs `npm run build-enterprise` in `sample-web-ui` and stages the
+  output into `services/console/internal/controller/httpapi/ui` (the
+  `go:embed` dir, which is gitignored apart from `.gitkeep`) before compiling
+  — matching the Console release workflow. Without this the full binary would
+  ship an empty web UI.
   ```bash
-  git submodule update --init services/console
+  git submodule update --init services/console services/sample-web-ui
   ./build-packages.sh
   ```
 

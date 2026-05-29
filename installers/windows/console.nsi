@@ -278,18 +278,6 @@ Section "Console Application" SecApp
   ; Generate config.yml
   Call WriteConfigFile
 
-  ; Lock down the config dir. config.yml holds credentials (auth.adminPassword,
-  ; auth.jwtKey); the default Program Files ACL grants BUILTIN\Users read, which
-  ; would expose them to every local user. Strip inheritance and grant only
-  ; SYSTEM, Administrators, and the installing user — the Windows equivalent of
-  ; the chmod 0600 + chown done by the Linux/macOS installers. (OI)(CI) makes the
-  ; grants inherit to config.yml and any file the app later persists there.
-  ; SIDs: *S-1-5-18 = SYSTEM, *S-1-5-32-544 = Administrators.
-  ReadEnvStr $R0 USERNAME
-  ReadEnvStr $R1 USERDOMAIN
-  nsExec::ExecToLog 'icacls "$INSTDIR\config" /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" "$R1\$R0:(OI)(CI)R" /T /C'
-  Pop $0
-
   ; Store installation folder and edition
   WriteRegStr HKLM "Software\DeviceManagementToolkit\Console" "InstallDir" "$INSTDIR"
   WriteRegStr HKLM "Software\DeviceManagementToolkit\Console" "Version" "${VERSION}"

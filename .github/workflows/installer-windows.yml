@@ -23,6 +23,11 @@ on:
         description: "Human-friendly release name (e.g. 'May 2026'). Empty = release tag."
         required: false
         default: ""
+      prerelease:
+        description: "Mark the GitHub release as a pre-release."
+        type: boolean
+        required: false
+        default: false
 
 # Least-privilege default for the workflow; the build job elevates to write.
 permissions:
@@ -126,5 +131,6 @@ jobs:
           file_glob: true
           tag: ${{ steps.ver.outputs.release_tag }}
           release_name: ${{ steps.ver.outputs.release_name }}
+          prerelease: ${{ inputs.prerelease }}
           overwrite: true
           body: "Device Management Toolkit Console installers (Console ${{ steps.ver.outputs.tag }})"

@@ -30,6 +30,6 @@ jobs:
           configFile: ./.github/commitlint.config.cjs
       - name: Install Dependencies
         run: npm install @commitlint/config-conventional@18.5
-      - uses: JulienKode/pull-request-name-linter-action@4fb4c2773193ad7ae5fe105c98ab30778abb1536 # v20.1.0
+      - uses: JulienKode/pull-request-name-linter-action@8dab22a5f84b07c565ba473f505b0bc5406924dc # v20.5.0
         with:
           configuration-path: ./.github/commitlint.config.cjs

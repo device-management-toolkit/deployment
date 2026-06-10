@@ -7,7 +7,7 @@ name: device-management-toolkit
 services:
   webui:
     restart: always
-    image: intel/oact-webui:${WEBUI_VERSION}
+    image: intel/oact-webui:${WEBUI_VERSION:-latest}
     networks:
       - openamtnetwork
     build:
@@ -21,7 +21,7 @@ services:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf
   rps:
     restart: always
-    image: intel/oact-rps:${RPS_VERSION}
+    image: intel/oact-rps:${RPS_VERSION:-latest}
     networks:
       - openamtnetwork
     build:
@@ -45,7 +45,7 @@ services:
       RPS_CONSUL_PORT: ${CONSUL_PORT}
   mps:
     restart: always
-    image: intel/oact-mps:${MPS_VERSION}
+    image: intel/oact-mps:${MPS_VERSION:-latest}
     networks:
       - openamtnetwork
     build:
@@ -73,7 +73,7 @@ services:
       - private-volume:/mps-microservice/private
   mpsrouter:
     restart: always
-    image: intel/oact-mpsrouter:${MPSROUTER_VERSION}
+    image: intel/oact-mpsrouter:${MPSROUTER_VERSION:-latest}
     environment:
       MPS_CONNECTION_STRING: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/mpsdb?sslmode=disable
       PORT: ${PORT}

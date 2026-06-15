@@ -1,22 +1,26 @@
-# Device Management Toolkit — Cloud Deployment
-
-> **Looking for the legacy MPS-based deployment?** See the [`v2`](../../tree/v2) branch.
+# Device Management Toolkit — Deployment
 
 [![Discord](https://img.shields.io/discord/1063200098680582154?style=for-the-badge&label=Discord&logo=discord&logoColor=white&labelColor=%235865F2&link=https%3A%2F%2Fdiscord.gg%2FDKHeUNEWVH)](https://discord.gg/DKHeUNEWVH)
 
-> Disclaimer: Production releases are tagged and listed under 'Releases'. Other check-ins should be considered in-development and should not be used in production.
+> **Disclaimer:** The main branch contains v3, which is in active development and **not ready for production use**. For production-ready deployments, see [tagged releases](../../releases). If you are using v2, see the [`v2`](../../tree/v2) branch.
 
-This repo contains deployment artifacts for **Device Management Toolkit (Console)** — the unified service replacing the historical MPS+RPS split. Console can be deployed in either a **cloud**  or **on-prem** environment.
+**This repository** provides cloud and on-premises deployment configurations for v3 components including Console, mps-router, and related services. Use this README to try out the currently supported deployment options. Documentation for v3 will be updated as planned features are completed.
 
-For detailed documentation, see the [docs site][docs].
+## 📌 Version Information
+
+**This branch contains v3 (in development).** 
+
+- **Using v2?** See the [`v2`](../../tree/v2) branch for all v2 maintenance and updates. v2 receives security updates, critical fixes, and minor improvements while v3 is being built.
+- **v3 Status:** The replacement for the historical MPS+RPS split. Not yet ready for production.
+- **Production Releases:** Check [tagged releases](../../releases) for production-ready versions. All other commits are in-development.
 
 ## Clone
 
 ```bash
-git clone --recursive https://github.com/device-management-toolkit/cloud-deployment.git
+git clone --recursive https://github.com/device-management-toolkit/deployment.git
 ```
 
-The `--recursive` flag is required — this repo uses git submodules under `services/`.
+The `--recursive` flag is required — this repository uses git submodules under `services/`.
 
 ## Get Started
 
@@ -75,20 +79,20 @@ Keycloak mode serves **two** self-signed certs — accept **both**, or login wil
 
 Each cert is unique per clone. Console's server-side OIDC discovery skips TLS verification (`AUTH_TLS_SKIP_VERIFY=true`) so it doesn't need the cert trusted; the browser still does. Don't reuse this skip-verify behavior in production.
 
-### Cloud (Azure) deployment
+### Cloud deployment (Azure)
 
 [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fdevice-management-toolkit%2Fcloud-deployment%2Fmain%2FazureDeploy.json)
 
-Or via Azure CLI:
+Alternatively, use Azure CLI:
 
 ```bash
 az group create --name dmt-console --location eastus
 az deployment group create --resource-group dmt-console --template-file azureDeploy.json
 ```
 
-> Migration to Bicep is planned. The current ARM template is retained for compatibility.
+> ARM template retained for compatibility. Migration to Bicep is planned.
 
-### Cloud Kubernetes (AKS, GKE, EKS) with Helm
+### Cloud Kubernetes (AKS, GKE, EKS)
 
 ```bash
 helm install console ./charts -f ./charts/values-cloud.yaml
@@ -96,7 +100,7 @@ helm install console ./charts -f ./charts/values-cloud.yaml
 
 Enables headless Console + sample-web-ui + kong API gateway + mps-router.
 
-### On-prem Kubernetes with Helm
+### On-premises Kubernetes
 
 ```bash
 helm install console ./charts -f ./charts/values-onprem.yaml
@@ -104,7 +108,7 @@ helm install console ./charts -f ./charts/values-onprem.yaml
 
 Console with built-in UI; no kong, no sample-web-ui, no mps-router.
 
-### On-prem native (macOS, Linux, Windows)
+### On-premises native (macOS, Linux, Windows)
 
 See [`installers/`](./installers) for native installer status.
 
@@ -118,12 +122,12 @@ See [`installers/`](./installers) for native installer status.
 
 ## Branches
 
-- `main` (this branch) — v3 (Console-era), active development.
-- `v2` — legacy MPS-era, minimum feature/maintenance only.
+- `main` (this branch) — v3, active development. Replaces the historical MPS+RPS split.
+- `v2` — Previous release. Receives security updates, critical fixes, and minor improvements.
 
 ## Additional Resources
 
-- [Documentation site][docs]
+- Documentation for v3 will be updated as planned features are completed. For v2 documentation, see the [docs site][docs]
 - [Open a new issue](./issues)
 - [Security policy](SECURITY.md)
 - [Discord](https://discord.gg/DKHeUNEWVH)

@@ -44,19 +44,34 @@ dmt_operations() {
 
 # Function to generate default values for DMT
 dmt_generate_defaults() {
-    DEFAULT_MPS_COMMON_NAME=$(hostname -I | awk '{print $1}')  # Automatically detected system IP address
-    DEFAULT_MPS_WEB_ADMIN_USER="hspeoob"                      # Default admin username for MPS web interface
-    DEFAULT_MPS_WEB_ADMIN_PASSWORD="Apple-1234"               # Default admin password for MPS web interface
-    DEFAULT_MPS_JWT_SECRET=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)  # Randomly generated 32-char JWT secret
-    DEFAULT_MPS_JWT_ISSUER=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)  # Randomly generated 32-char JWT issuer key
-    DEFAULT_POSTGRES_PASSWORD="Apple-1234"                    # Default PostgreSQL database password
-    DEFAULT_VAULT_TOKEN=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)     # Randomly generated 32-char Vault token
+    # Allow override via env; fall back to hostname -I (Linux) then localhost for cross-platform support
+    if [ -n "${MPS_COMMON_NAME:-}" ]; then
+        DEFAULT_MPS_COMMON_NAME="$MPS_COMMON_NAME"
+    elif command -v hostname >/dev/null 2>&1 && hostname -I >/dev/null 2>&1; then
+        DEFAULT_MPS_COMMON_NAME=$(hostname -I | awk '{print $1}')
+    else
+        DEFAULT_MPS_COMMON_NAME="host.docker.internal"
+    fi
+    DEFAULT_MPS_WEB_ADMIN_USER="standarduser"
+    DEFAULT_MPS_WEB_ADMIN_PASSWORD=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w 20 | head -n 1)
+    DEFAULT_MPS_JWT_SECRET=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w 32 | head -n 1)
+    DEFAULT_MPS_JWT_ISSUER=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w 32 | head -n 1)
+    DEFAULT_POSTGRES_PASSWORD=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w 20 | head -n 1)
+    DEFAULT_VAULT_TOKEN=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w 32 | head -n 1)
 }
 
 # Function to populate .env file for DMT
 dmt_populate_env_file() {
     if [ -f "$OUTPUT_FILE" ] && grep -qE "^MPS_JWT_SECRET=.+$" "$OUTPUT_FILE"; then
-        echo "✓ Existing .env with MPS_JWT_SECRET found; skipping .env generation."
+        echo "✓ Existing .env with MPS_JWT_SECRET found; reusing existing values."
+        # Load existing values so downstream patch steps (kong/cypress/docker-compose) stay consistent
+        DEFAULT_MPS_COMMON_NAME="$(grep -E '^MPS_COMMON_NAME=' "$OUTPUT_FILE" | cut -d'=' -f2-)"
+        DEFAULT_MPS_WEB_ADMIN_USER="$(grep -E '^MPS_WEB_ADMIN_USER=' "$OUTPUT_FILE" | cut -d'=' -f2-)"
+        DEFAULT_MPS_WEB_ADMIN_PASSWORD="$(grep -E '^MPS_WEB_ADMIN_PASSWORD=' "$OUTPUT_FILE" | cut -d'=' -f2-)"
+        DEFAULT_MPS_JWT_SECRET="$(grep -E '^MPS_JWT_SECRET=' "$OUTPUT_FILE" | cut -d'=' -f2-)"
+        DEFAULT_MPS_JWT_ISSUER="$(grep -E '^MPS_JWT_ISSUER=' "$OUTPUT_FILE" | cut -d'=' -f2-)"
+        DEFAULT_POSTGRES_PASSWORD="$(grep -E '^POSTGRES_PASSWORD=' "$OUTPUT_FILE" | cut -d'=' -f2-)"
+        DEFAULT_VAULT_TOKEN="$(grep -E '^VAULT_TOKEN=' "$OUTPUT_FILE" | cut -d'=' -f2-)"
         return 0
     fi
 
@@ -152,4 +167,4 @@ main() {
 }
 
 # Run main function
-main REPO_TYPE="DMT"
+main

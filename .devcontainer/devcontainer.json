@@ -60,6 +60,5 @@
             ]
         }
     },
-    "initializeCommand": "sed -i 's/\\r$//' .devcontainer/post-create.sh && /bin/bash .devcontainer/pre-create.sh",
-    "postCreateCommand": "sed -i 's/\\r$//' .devcontainer/post-create.sh && /bin/bash .devcontainer/post-create.sh"
+    "postCreateCommand": "sed -i 's/\\r$//' .devcontainer/pre-create.sh .devcontainer/post-create.sh && /bin/bash .devcontainer/pre-create.sh && /bin/bash .devcontainer/post-create.sh"
 }

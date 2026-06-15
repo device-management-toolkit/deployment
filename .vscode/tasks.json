@@ -4,7 +4,7 @@
         {
             "label": "Start Infrastructure",
             "type": "shell",
-            "command": "docker-compose up -d db vault kong mosquitto consul",
+            "command": "docker compose up -d db vault kong mosquitto consul",
             "presentation": {
                 "reveal": "always",
                 "panel": "shared"
@@ -15,7 +15,7 @@
         {
             "label": "Stop Infrastructure",
             "type": "shell",
-            "command": "docker-compose stop db vault kong mosquitto consul",
+            "command": "docker compose stop db vault kong mosquitto consul",
             "presentation": {
                 "reveal": "always",
                 "panel": "shared"
@@ -25,13 +25,13 @@
         {
             "label": "Restart Infrastructure",
             "type": "shell",
-            "command": "docker-compose restart db vault kong mosquitto consul",
+            "command": "docker compose restart db vault kong mosquitto consul",
             "problemMatcher": []
         },
         {
             "label": "Connect DevContainer to Network",
             "type": "shell",
-            "command": "docker network connect $(docker network ls --filter name=openamtnetwork --format '{{.Name}}') $HOSTNAME || echo 'Already connected or network not found'",
+            "command": "NETWORK=$(docker network ls --filter name=openamtnetwork --format '{{.Name}}' | head -n 1) && [ -n \"$NETWORK\" ] && docker network connect \"$NETWORK\" \"$HOSTNAME\" || echo 'Already connected or network not found'",
             "presentation": {
                 "reveal": "always",
                 "panel": "shared"

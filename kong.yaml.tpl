@@ -119,6 +119,17 @@ plugins:
     claims_to_verify:
     - exp
 
+# Inject x-tenant-id from KONG_TENANT_HEADER_VALUE env var.
+# If KONG_TENANT_HEADER_VALUE is not set it defaults to "default" (see docker-compose).
+# When no tenant header is needed, leave KONG_TENANT_HEADER_VALUE unset in .env
+# and the value "default" signals a single-tenant deployment.
+- name: request-transformer
+  route: console-api-route
+  config:
+    add:
+      headers:
+      - x-tenant-id:${KONG_TENANT_HEADER_VALUE}
+
 consumers:
   - username: keycloak
 jwt_secrets:

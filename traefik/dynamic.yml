@@ -1,0 +1,177 @@
+http:
+  middlewares:
+    dmt-cors:
+      headers:
+        accessControlAllowMethods:
+          - GET
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+          - OPTIONS
+        accessControlAllowHeaders:
+          - Authorization
+          - Content-Type
+          - x-tenant-id
+          - tenant-id
+        accessControlAllowOriginList:
+          - "*"
+        accessControlMaxAge: 600
+        addVaryHeader: true
+
+    # JWT auth is handled by Console's own built-in JWTAuthMiddleware (Gin).
+    # The Authorization header is passed through by Traefik and Console validates it.
+    # Use a dedicated token introspection service here if external JWT validation is needed.
+
+    # Kong request-transformer equivalent: static tenant header injection.
+    dmt-tenant-header:
+      headers:
+        customRequestHeaders:
+          x-tenant-id: default
+
+    dmt-console-api-chain:
+      chain:
+        middlewares:
+          - dmt-cors
+          - dmt-tenant-header
+
+    dmt-relay-chain:
+      chain:
+        middlewares:
+          - dmt-cors
+
+  routers:
+    console-login:
+      entryPoints:
+        - websecure
+      rule: Path(`/api/v1/authorize`)
+      service: console
+      middlewares:
+        - dmt-cors
+      tls: {}
+      priority: 250
+
+    console-api:
+      entryPoints:
+        - websecure
+      rule: PathPrefix(`/api`)
+      service: console
+      middlewares:
+        - dmt-console-api-chain
+      tls: {}
+      priority: 200
+
+    console-relay:
+      entryPoints:
+        - websecure
+      rule: Path(`/relay/webrelay.ashx`)
+      service: console
+      middlewares:
+        - dmt-relay-chain
+      tls: {}
+      priority: 180
+
+    console-health:
+      entryPoints:
+        - websecure
+      rule: Path(`/healthz`)
+      service: console
+      middlewares:
+        - dmt-cors
+      tls: {}
+      priority: 170
+
+    console-version:
+      entryPoints:
+        - websecure
+      rule: Path(`/version`)
+      service: console
+      middlewares:
+        - dmt-cors
+      tls: {}
+      priority: 165
+
+    rps-activate:
+      entryPoints:
+        - websecure
+      rule: PathPrefix(`/activate`)
+      service: rps
+      middlewares:
+        - dmt-cors
+      tls: {}
+      priority: 160
+
+    rps-deactivate:
+      entryPoints:
+        - websecure
+      rule: PathPrefix(`/deactivate`)
+      service: rps
+      middlewares:
+        - dmt-cors
+      tls: {}
+      priority: 155
+
+    rps-maintenance:
+      entryPoints:
+        - websecure
+      rule: PathPrefix(`/maintenance`)
+      service: rps
+      middlewares:
+        - dmt-cors
+      tls: {}
+      priority: 150
+
+    vault:
+      entryPoints:
+        - websecure
+      rule: PathPrefix(`/vault`)
+      service: vault
+      middlewares:
+        - dmt-cors
+      tls: {}
+      priority: 120
+
+    web:
+      entryPoints:
+        - websecure
+      rule: PathPrefix(`/`)
+      service: webui
+      middlewares:
+        - dmt-cors
+      tls: {}
+      priority: 1
+
+  services:
+    console:
+      loadBalancer:
+        servers:
+          - url: http://console:8181
+
+    rps:
+      loadBalancer:
+        servers:
+          - url: http://rps:8080
+
+    vault:
+      loadBalancer:
+        servers:
+          - url: http://vault:8200
+
+    webui:
+      loadBalancer:
+        servers:
+          - url: http://webui:80
+
+tcp:
+  routers:
+    console-cira:
+      entryPoints:
+        - cira
+      rule: HostSNI(`*`)
+      service: console-cira
+
+  services:
+    console-cira:
+      loadBalancer:
+        servers:
+          - address: console:4433

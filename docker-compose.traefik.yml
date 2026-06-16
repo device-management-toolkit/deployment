@@ -2,6 +2,10 @@
 # Copyright (c) Intel Corporation 2020
 # SPDX-License-Identifier: Apache-2.0
 #**********************************************************************/
+# Traefik-based gateway variant.
+# Use: docker compose -f docker-compose.traefik.yml up -d
+# Routes and middleware are defined in ./traefik/dynamic.yml and reload live
+# without restarting this stack (providers.file.watch=true).
 name: device-management-toolkit
 
 services:
@@ -81,7 +85,6 @@ services:
       RPS_CONSUL_HOST: ${CONSUL_HOST}
       RPS_CONSUL_PORT: ${CONSUL_PORT}
 
-
   db:
     restart: always
     image: postgres:18
@@ -102,7 +105,6 @@ services:
     ports:
       - 5432:5432
 
-
   vault:
     restart: always
     image: hashicorp/vault:1.21
@@ -116,41 +118,41 @@ services:
     cap_add:
       - IPC_LOCK
 
-  kong:
+  traefik:
     restart: always
-    image: kong:3.9
+    image: traefik:v3.1
     healthcheck:
-      test: ["CMD", "kong", "health"]
+      # entrypoints.traefik.address must match the --api/--ping listener
+      test: ["CMD", "traefik", "healthcheck", "--ping", "--entrypoints.traefik.address=127.0.0.1:8080"]
       interval: 10s
       timeout: 10s
       retries: 10
     command:
-      - sh
-      - -c
-      - 'awk -v k="$$AUTH_JWT_KEY" -v t="$$KONG_TENANT_HEADER_VALUE" ''{gsub(/\$\{AUTH_JWT_KEY\}/, k); gsub(/\$\{KONG_TENANT_HEADER_VALUE\}/, t); print}'' /home/kong/kong.yml.tpl > /tmp/kong.yml && exec kong start --vv'
+      - --api.dashboard=true
+      - --ping=true
+      - --providers.docker=false
+      # File provider: edit ./traefik/dynamic.yml at runtime for zero-restart config changes
+      - --providers.file.filename=/etc/traefik/dynamic.yml
+      - --providers.file.watch=true
+      - --entrypoints.websecure.address=:443
+      - --entrypoints.cira.address=:4433
+      - --log.level=INFO
+      - --accesslog=true
     environment:
-      - KONG_DATABASE=off
-      - KONG_CASSANDRA_CONTACT_POINTS=kong-database
-      - KONG_ADMIN_LISTEN=0.0.0.0:8001
-      - KONG_ADMIN_LISTEN_SSL=0.0.0.0:8444
-      - KONG_NGINX_DAEMON=off
-      - KONG_DECLARATIVE_CONFIG=/tmp/kong.yml
-      - KONG_PROXY_ERROR_LOG=/dev/stderr
-      - KONG_PROXY_ACCESS_LOG=/dev/stdout
-      - KONG_ADMIN_ACCESS_LOG=/dev/stdout
-      - KONG_ADMIN_ERROR_LOG=/dev/stderr
-      - KONG_DNS_ORDER=LAST,A,CNAME
-      - KONG_UPSTREAM_KEEPALIVE_POOL_SIZE=0
-      - KONG_STREAM_LISTEN=0.0.0.0:4433
-      - AUTH_JWT_KEY=${AUTH_JWT_KEY}
-      - KONG_TENANT_HEADER_VALUE=${KONG_TENANT_HEADER_VALUE:-default}
+      # Prevent corporate proxy from intercepting internal Docker network traffic
+      HTTP_PROXY: ""
+      HTTPS_PROXY: ""
+      http_proxy: ""
+      https_proxy: ""
+      NO_PROXY: "localhost,127.0.0.1,::1,console,webui,rps,vault,db,traefik"
+      no_proxy: "localhost,127.0.0.1,::1,console,webui,rps,vault,db,traefik"
     networks:
       - dmtnetwork
     volumes:
-      - ./kong.yaml.tpl:/home/kong/kong.yml.tpl
+      - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
     ports:
-      - 443:8443
-      - 8001:8001
+      - 443:443
+      - 8080:8080
       - "${MPSPORT}:4433"
 
 volumes:

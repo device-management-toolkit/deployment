@@ -128,7 +128,7 @@ plugins:
   config:
     add:
       headers:
-      - x-tenant-id:${KONG_TENANT_HEADER_VALUE}
+      - "x-tenant-id:${KONG_TENANT_HEADER_VALUE}"
 
 consumers:
   - username: keycloak

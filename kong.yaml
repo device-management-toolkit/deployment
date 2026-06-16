@@ -117,6 +117,13 @@ plugins:
     claims_to_verify:
     - exp
 
+- name: request-transformer
+  route: console-api-route
+  config:
+    add:
+      headers:
+      - "x-tenant-id:${KONG_TENANT_HEADER_VALUE}"
+
 consumers:
   - username: admin
 jwt_secrets:

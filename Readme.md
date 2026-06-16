@@ -8,7 +8,7 @@
 
 ## 📌 Version Information
 
-**This branch contains v3 (in development).** 
+**This branch contains v3 (in development).**
 
 - **Using v2?** See the [`v2`](../../tree/v2) branch for all v2 maintenance and updates. v2 receives security updates, critical fixes, and minor improvements while v3 is being built.
 - **v3 Status:** The replacement for the historical MPS+RPS split. Not yet ready for production.
@@ -52,6 +52,26 @@ The bootstrap step (run automatically by `make`, or `./scripts/bootstrap-env.ps1
 Once the stack is up, `make` opens your browser at `https://<MPS_COMMON_NAME>/` (the app is served over HTTPS via Kong with a self-signed cert, so accept the browser warning). On Windows, open that URL manually after `docker compose up`.
 
 If you'd rather configure manually: copy `.env.template` to `.env`, fill the fields yourself, then run the compose command for your mode.
+
+#### Tenant Header Injection (Kong)
+
+In the local Docker Compose stack, Kong can inject a fixed tenant header into Console API requests by reading `KONG_TENANT_HEADER_VALUE` from `.env`.
+
+Example:
+
+```dotenv
+KONG_TENANT_HEADER_VALUE=corp-internal
+```
+
+When set, Kong adds `x-tenant-id: <value>` to requests forwarded on the `/api` routes. This is useful for single-tenant or deployment-scoped tenancy where one deployment instance should always present the same tenant identifier to Console.
+
+To change the tenant value later, update `KONG_TENANT_HEADER_VALUE` in `.env` and recreate only the Kong container:
+
+```bash
+docker compose up -d --no-deps --force-recreate kong
+```
+
+This reloads Kong with the new environment value without restarting Console, Postgres, Vault, RPS, or the sample web UI.
 
 ### Login
 

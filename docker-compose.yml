@@ -147,7 +147,7 @@ services:
     networks:
       - dmtnetwork
     volumes:
-      - ./kong.yaml.tpl:/home/kong/kong.yml.tpl
+      - ./kong.yaml:/home/kong/kong.yml.tpl
     ports:
       - 443:8443
       - 8001:8001

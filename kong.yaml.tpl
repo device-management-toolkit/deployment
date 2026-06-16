@@ -119,6 +119,17 @@ plugins:
     claims_to_verify:
     - exp
 
+# BEGIN_TENANT_HEADER_PLUGIN
+# Inject x-tenant-id from KONG_TENANT_HEADER_VALUE when the value is non-empty.
+# Leave KONG_TENANT_HEADER_VALUE blank to disable tenant header injection.
+- name: request-transformer
+  route: console-api-route
+  config:
+    add:
+      headers:
+      - "x-tenant-id:${KONG_TENANT_HEADER_VALUE}"
+# END_TENANT_HEADER_PLUGIN
+
 consumers:
   - username: keycloak
 jwt_secrets:

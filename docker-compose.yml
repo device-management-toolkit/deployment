@@ -29,6 +29,8 @@ services:
       HTTP_TLS_ENABLED: "false"
       LOG_LEVEL: ${LOG_LEVEL}
       APP_DISABLE_CIRA: "false"
+      NO_PROXY: "${NO_PROXY:-localhost,127.0.0.1,::1},vault"
+      no_proxy: "${no_proxy:-localhost,127.0.0.1,::1},vault"
     healthcheck:
       test: ["CMD", "/app", "--health"]
       interval: 12s
@@ -99,7 +101,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       - 5432:5432
-  
+
 
   vault:
     restart: always

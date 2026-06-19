@@ -127,7 +127,7 @@ services:
     command:
       - sh
       - -c
-      - 'awk -v k="$$AUTH_JWT_KEY" ''{gsub(/\$\{AUTH_JWT_KEY\}/, k); print}'' /home/kong/kong.yml.tpl > /tmp/kong.yml && exec kong start --vv'
+      - 'awk -v k="$$AUTH_JWT_KEY" -v t="$$KONG_TENANT_HEADER_VALUE" ''/# BEGIN_TENANT_HEADER_PLUGIN/ { skip = (t == ""); next } /# END_TENANT_HEADER_PLUGIN/ { skip = 0; next } skip { next } { gsub(/\$\{AUTH_JWT_KEY\}/, k); gsub(/\$\{KONG_TENANT_HEADER_VALUE\}/, t); print }'' /home/kong/kong.yml.tpl > /tmp/kong.yml && exec kong start --vv'
     environment:
       - KONG_DATABASE=off
       - KONG_CASSANDRA_CONTACT_POINTS=kong-database
@@ -143,6 +143,7 @@ services:
       - KONG_UPSTREAM_KEEPALIVE_POOL_SIZE=0
       - KONG_STREAM_LISTEN=0.0.0.0:4433
       - AUTH_JWT_KEY=${AUTH_JWT_KEY}
+      - KONG_TENANT_HEADER_VALUE=${KONG_TENANT_HEADER_VALUE-}
     networks:
       - dmtnetwork
     volumes:

@@ -35,6 +35,7 @@ services:
     environment:
       MPS_COMMON_NAME: ${MPS_COMMON_NAME}
       CONSOLE_USER_PASSWORD: ${CONSOLE_USER_PASSWORD}
+      KONG_TENANT_HEADER_VALUE: ${KONG_TENANT_HEADER_VALUE-}
     volumes:
       - ./generated:/generated
       - ./keycloak/realm-export.json.tpl:/templates/realm-export.json.tpl:ro

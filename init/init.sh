@@ -46,6 +46,7 @@ if [ ! -f "$REALM_EXPORT_PATH" ] || [ ! -f "$KONG_CONFIG_PATH" ]; then
   PRIV=$(openssl pkcs8 -topk8 -nocrypt -in /tmp/sign.key -outform DER | base64 | tr -d '\n')
   CERT=$(openssl x509 -in /tmp/sign.crt -outform DER | base64 | tr -d '\n')
   PUB_INDENTED=$(openssl x509 -in /tmp/sign.crt -pubkey -noout | sed 's/^/      /')
+  TENANT_HEADER=${KONG_TENANT_HEADER_VALUE:-}
 
   PASS=${CONSOLE_USER_PASSWORD:-}
   [ -z "$PASS" ] && echo "[init] WARNING: CONSOLE_USER_PASSWORD is empty; run scripts/bootstrap-env.sh or set it in .env"
@@ -58,9 +59,13 @@ if [ ! -f "$REALM_EXPORT_PATH" ] || [ ! -f "$KONG_CONFIG_PATH" ]; then
       print }
   ' "$TPL/realm-export.json.tpl" > "$REALM_EXPORT_PATH"
 
-  awk -v pub="$PUB_INDENTED" -v host="$HOST" '
+  awk -v pub="$PUB_INDENTED" -v host="$HOST" -v tenant_header="$TENANT_HEADER" '
+    /# BEGIN_TENANT_HEADER_PLUGIN/ { skip = (tenant_header == ""); next }
+    /# END_TENANT_HEADER_PLUGIN/ { skip = 0; next }
+    skip { next }
     { gsub(/__KEYCLOAK_PUBKEY__/, pub);
       gsub(/__MPS_COMMON_NAME__/, host);
+      gsub(/\$\{KONG_TENANT_HEADER_VALUE\}/, tenant_header);
       print }
   ' "$TPL/kong.yaml.tpl" > "$KONG_CONFIG_PATH"
 

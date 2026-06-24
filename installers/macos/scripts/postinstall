@@ -12,9 +12,10 @@ EDITION_LABEL="EDITION_LABEL_PLACEHOLDER"
 
 INSTALL_DIR="/usr/local/bin"
 APP_DIR="/usr/local/device-management-toolkit"
-CONFIG_DIR="$APP_DIR/config"
+# Machine-wide seed in /Library/Application Support, world-readable so every
+# user's tray seeds the same credentials. Per-user copy stays owner-only.
+CONFIG_DIR="/Library/Application Support/device-management-toolkit"
 CONFIG_FILE="$CONFIG_DIR/config.yml"
-CREDS_FILE="$APP_DIR/INITIAL_CREDENTIALS.txt"
 
 # Pick the install user: $USER/$SUDO_USER from the installer env, falling back to the active GUI session.
 resolve_install_user() {
@@ -35,7 +36,8 @@ if [ -f "$APP_DIR/console" ]; then
     echo "Created symlink: $INSTALL_DIR/dmt-console -> $APP_DIR/console"
 fi
 
-# DB lives in ~/Library/Application Support via os.UserConfigDir(), so only config/ is needed here.
+# Per-user DB lives in ~/Library/Application Support via os.UserConfigDir(); this
+# is the machine-wide seed dir the binary reads (machineConfigPath).
 if [ ! -d "$CONFIG_DIR" ]; then
     mkdir -p "$CONFIG_DIR"
     chmod 755 "$CONFIG_DIR"
@@ -43,8 +45,16 @@ fi
 
 # Only create config if it doesn't exist (preserve existing config on upgrade)
 if [ ! -f "$CONFIG_FILE" ]; then
-    # Generate random credentials per install (no shipped defaults)
-    ADMIN_PASSWORD=$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 20)
+    # Leave adminPassword blank in the machine seed: every user's tray generates
+    # its own unique password on first launch (handleAdminPassword) and stores it
+    # owner-only, so no single install-time password is shared across users.
+    #
+    # TODO(jwtKey): jwtKey is still SHARED — it stays a per-install random in this
+    # world-readable seed and is copied unchanged into every user's config, so a
+    # local user can read it and forge a JWT for any user's Console. Make it
+    # per-user like the password: add handleJWTKey in the binary (mirroring
+    # handleAdminPassword) to generate+persist a random key when blank/placeholder,
+    # then blank jwtKey here too. See the "Known limitation" note in CREDENTIALS.md.
     JWT_KEY=$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 48)
 
     # Generate config.yml with defaults
@@ -82,7 +92,7 @@ ea:
 auth:
   disabled: false
   adminUsername: standalone
-  adminPassword: $ADMIN_PASSWORD
+  adminPassword: ""
   jwtKey: $JWT_KEY
   jwtExpiration: 24h0m0s
   redirectionJWTExpiration: 5m0s
@@ -100,32 +110,28 @@ ui:
   externalUrl: ""
 EOF
 
-    chmod 600 "$CONFIG_FILE"
-    chown "$CONSOLE_USER" "$CONFIG_FILE" 2>/dev/null || true
+    # Root-owned, world-readable seed: every user's tray reads it to seed its
+    # own owner-only copy. It carries settings + jwtKey but no adminPassword —
+    # each user's tray generates and stores its own password.
+    chown root:wheel "$CONFIG_FILE"
+    chmod 644 "$CONFIG_FILE"
     echo "Configuration saved to $CONFIG_FILE"
 
-    # Don't echo the password — pkg postinstall stdout lands in world-readable /var/log/install.log.
-    umask 077
-    cat > "$CREDS_FILE" <<CREDS
-Device Management Toolkit Console - Initial Credentials
-========================================================
-These credentials were generated at install time. Change them with
-\`sudo dmt-configure\` and delete this file once recorded.
-
-  Username: standalone
-  Password: $ADMIN_PASSWORD
-CREDS
-    chmod 600 "$CREDS_FILE"
+    PER_USER_CONFIG="Library/Application Support/device-management-toolkit/config/config.yml"
     echo ""
     echo "======================================================="
-    echo "Initial admin credentials saved to:"
-    echo "  $CREDS_FILE"
-    echo "Read it with: sudo cat $CREDS_FILE"
-    echo "Change them with: sudo dmt-configure"
+    echo "A unique admin password is generated for each user on first"
+    echo "launch and stored owner-only in that user's config:"
+    echo "  ~/$PER_USER_CONFIG"
+    echo "Read your password with:"
+    echo "  awk '/adminPassword:/{print \$2}' \"\$HOME/$PER_USER_CONFIG\""
+    echo "Set your own with: sudo dmt-configure"
     echo "======================================================="
 else
     echo "Existing configuration preserved at $CONFIG_FILE"
-    chmod 600 "$CONFIG_FILE" 2>/dev/null || true
+    # Reassert root ownership so an upgrade can't leave a non-root owner able to edit the seed.
+    chown root:wheel "$CONFIG_FILE" 2>/dev/null || true
+    chmod 644 "$CONFIG_FILE" 2>/dev/null || true
 fi
 
 # Copy the configuration script for future use

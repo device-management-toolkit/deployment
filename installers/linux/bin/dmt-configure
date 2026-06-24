@@ -4,13 +4,13 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Reads admin port / TLS / admin credentials from the operator, rewrites
-# the relevant fields in the config the binary actually reads
-# (/opt/dmt-console/config/config.yml), and restarts a running tray instance
-# so the new values take effect.
+# the relevant fields in the installer-provisioned config
+# (/etc/dmt-console/config/config.yml), and restarts a running tray instance so the
+# new values take effect.
 
 set -e
 
-CONFIG_FILE=/opt/dmt-console/config/config.yml
+CONFIG_FILE=/etc/dmt-console/config/config.yml
 
 if [ ! -f "$CONFIG_FILE" ]; then
     echo "Config file not found: $CONFIG_FILE" >&2

@@ -4,6 +4,11 @@ updates:
     directory: /
     schedule:
       interval: daily
+    # codeql-action's sub-actions release in lockstep; one PR instead of four.
+    groups:
+      codeql-action:
+        patterns:
+          - 'github/codeql-action*'
 
   - package-ecosystem: docker
     directory: /pg

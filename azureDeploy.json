@@ -250,7 +250,7 @@
           {
             "name": "kong",
             "properties": {
-              "image": "kong:2.3",
+              "image": "kong:3.9",
               "ports": [
                 {
                   "port": 8443

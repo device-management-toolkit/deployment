@@ -329,13 +329,23 @@ Section "Console Application" SecApp
 SectionEnd
 
 Section "Start Menu Shortcuts" SecStartMenu
+  ; Use the machine-wide config seed under ProgramData.
+  SetShellVarContext all
+  StrCpy $0 "$APPDATA\device-management-toolkit\config.yml"
+  SetShellVarContext current
+
   CreateDirectory "$SMPROGRAMS\Device Management Toolkit"
-  CreateShortcut "$SMPROGRAMS\Device Management Toolkit\Console.lnk" "$INSTDIR\console.exe" "--tray"
+  CreateShortcut "$SMPROGRAMS\Device Management Toolkit\Console.lnk" "$INSTDIR\console.exe" "--tray --config $\"$0$\""
   CreateShortcut "$SMPROGRAMS\Device Management Toolkit\Uninstall Console.lnk" "$INSTDIR\Uninstall.exe"
 SectionEnd
 
 Section "Desktop Shortcut" SecDesktop
-  CreateShortcut "$DESKTOP\DMT Console.lnk" "$INSTDIR\console.exe" "--tray"
+  ; Use the machine-wide config seed under ProgramData.
+  SetShellVarContext all
+  StrCpy $0 "$APPDATA\device-management-toolkit\config.yml"
+  SetShellVarContext current
+
+  CreateShortcut "$DESKTOP\DMT Console.lnk" "$INSTDIR\console.exe" "--tray --config $\"$0$\""
 SectionEnd
 
 Section /o "Add to PATH" SecPath
@@ -355,8 +365,13 @@ Section /o "Add to PATH" SecPath
 SectionEnd
 
 Section /o "Run at Startup (System Tray)" SecStartup
+  ; Use the machine-wide config seed under ProgramData.
+  SetShellVarContext all
+  StrCpy $0 "$APPDATA\device-management-toolkit\config.yml"
+  SetShellVarContext current
+
   ; Add to HKLM Run key so it launches with --tray on login
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Run" "DMTConsole" '"$INSTDIR\console.exe" --tray'
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Run" "DMTConsole" '"$INSTDIR\console.exe" --tray --config "$0"'
 
   ; Record that we added startup entry
   WriteRegStr HKLM "Software\DeviceManagementToolkit\Console" "StartupInstalled" "1"

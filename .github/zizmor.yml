@@ -1,0 +1,12 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+---
+# Zizmor configuration. See https://docs.zizmor.sh/configuration/
+rules:
+  # Daily updates with no cooldown are intentional here. A version compromised
+  # at publish time can reach CI before it is yanked, but the blast radius is
+  # small: Dependabot PRs do not receive repository secrets by default and run
+  # with a read-only GITHUB_TOKEN.
+  dependabot-cooldown:
+    ignore:
+      - dependabot.yml

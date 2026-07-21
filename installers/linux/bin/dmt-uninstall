@@ -44,7 +44,7 @@ fi
 # Stop any tray instance before removal.
 pkill -x dmt-console >/dev/null 2>&1 || true
 
-printf "Remove configuration (/opt/dmt-console)? [y/N]: "
+printf "Remove configuration (/etc/dmt-console)? [y/N]: "
 read answer
 case "$answer" in
     y|Y|yes|YES) PURGE=1 ;;
@@ -81,7 +81,7 @@ case "$PM" in
         if [ "$PURGE" = "0" ]; then
             backup_dir="/root/dmt-console.backup.$(date +%Y%m%d-%H%M%S)"
             mkdir -p "$backup_dir"
-            cp -a /opt/dmt-console/config "$backup_dir/" 2>/dev/null || true
+            cp -a /etc/dmt-console "$backup_dir/" 2>/dev/null || true
             echo "Config backed up to $backup_dir"
         fi
         "$PM" remove -y "$PKG"

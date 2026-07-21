@@ -77,11 +77,13 @@ sudo dnf install ./console_3.1.0_linux_amd64.rpm
 
 On first install the postinstall scriptlet:
 
-1. Generates `/opt/dmt-console/config/config.yml` from a template with a
-   random JWT signing key, encryption key, and admin password. (This is the
-   file the binary actually reads — it resolves its config relative to the
-   real binary at `/opt/dmt-console/dmt-console`, which the `/usr/bin`
-   symlink points at.)
+1. Generates `/etc/dmt-console/config/config.yml` from a template with
+   a random JWT signing key, encryption key, and admin password. This is the
+   machine-wide seed (root-owned, world-readable — the POSIX analog of
+   `%ProgramData%` on Windows): the headless binary reads it directly, and
+   every user's tray seeds its own owner-only copy under `~/.config` from it on
+   first launch, so all users share the same installer credentials instead of
+   each generating fresh ones.
 2. Writes the generated admin credentials to
    `/opt/dmt-console/INITIAL_CREDENTIALS.txt` (mode 0600, owned by the
    detected desktop user).
@@ -103,7 +105,7 @@ file stays root-owned — prefix with `sudo` in that case.
 
 If no graphical session is detected, postinstall skips the auto-launch
 and prints a hint. The binary still works as a CLI; run it directly (it
-finds `/opt/dmt-console/config/config.yml` on its own — no `--config`
+finds `/etc/dmt-console/config/config.yml` on its own — no `--config`
 needed):
 
 ```bash
@@ -144,12 +146,11 @@ dmt-console --tray
 dmt-configure
 ```
 
-No `sudo` needed on a desktop install — postinstall chowns the config to
-the desktop user, so its owner can reconfigure directly. (On a server
-install with a root-owned config, run it with `sudo`.)
+Run with `sudo` — the machine config is root-owned (world-readable seed,
+mirroring `%ProgramData%` on Windows), so rewriting it requires root.
 
 Prompts for HTTP port, TLS toggle, admin username and password; rewrites
-`/opt/dmt-console/config/config.yml`; stops and relaunches the running tray
+`/etc/dmt-console/config/config.yml`; stops and relaunches the running tray
 instance so the new values take effect. Direct edits to `config.yml` are
 preserved across package upgrades (postinstall checks for an existing
 file before regenerating).
@@ -186,8 +187,8 @@ sudo dmt-uninstall
 Detects the package manager, kills any running tray, then prompts twice
 (mirroring the Windows uninstaller's "remove user data?" step):
 
-1. **Remove configuration** (`/opt/dmt-console`) — drives `apt purge` vs
-   `apt remove`; on rpm it backs the config up to `/root` first when kept.
+1. **Remove configuration** (`/opt/dmt-console` and `/etc/dmt-console`) — drives
+   `apt purge` vs `apt remove`; on rpm it backs the config up to `/root` first when kept.
 2. **Also remove your Console data** — the per-user database, profiles, and
    encrypted credentials under `~/.config/device-management-toolkit/`. Off by
    default; resolves the desktop user via `$SUDO_USER` and deletes only that
@@ -196,8 +197,8 @@ Detects the package manager, kills any running tray, then prompts twice
 Or use the package manager directly:
 
 ```bash
-sudo apt remove dmt-console       # keep /opt/dmt-console (config)
-sudo apt purge  dmt-console       # remove /opt/dmt-console (config)
+sudo apt remove dmt-console       # keep /etc/dmt-console (config)
+sudo apt purge  dmt-console       # remove /etc/dmt-console (config)
 sudo dnf remove dmt-console       # rpm has no remove/purge split
 ```
 
@@ -216,7 +217,7 @@ way).
 | Binary (symlink)  | `/usr/bin/dmt-console` → `/opt/dmt-console/dmt-console` |
 | Helper CLIs       | `/usr/bin/{dmt-configure,dmt-uninstall}`            |
 | XDG autostart     | `/etc/xdg/autostart/dmt-console.desktop`            |
-| Config            | `/opt/dmt-console/config/config.yml` (chowned to the desktop user) |
+| Config            | `/etc/dmt-console/config/config.yml` (root-owned, world-readable seed) |
 | Config template   | `/usr/share/dmt-console/config.yml.tmpl`            |
 | Initial creds     | `/opt/dmt-console/INITIAL_CREDENTIALS.txt`          |
 | Docs              | `/usr/share/doc/dmt-console/{README.md,copyright}`  |

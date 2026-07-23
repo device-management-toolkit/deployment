@@ -1,0 +1,57 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "pwa-node",
+            "request": "launch",
+            "name": "Debug MPS (Node.js)",
+            "program": "${workspaceFolder}/mps/dist/index.js",
+            "cwd": "${workspaceFolder}/mps",
+            "envFile": "${workspaceFolder}/.env",
+            "sourceMaps": true,
+            "outFiles": [
+                "${workspaceFolder}/mps/dist/**/*.js"
+            ],
+            "skipFiles": [
+                "<node_internals>/**"
+            ]
+        },
+        {
+            "type": "pwa-node",
+            "request": "launch",
+            "name": "Debug RPS (Node.js)",
+            "program": "${workspaceFolder}/rps/dist/Index.js",
+            "cwd": "${workspaceFolder}/rps",
+            "envFile": "${workspaceFolder}/.env",
+            "sourceMaps": true,
+            "outFiles": [
+                "${workspaceFolder}/rps/dist/**/*.js"
+            ],
+            "skipFiles": [
+                "<node_internals>/**"
+            ]
+        },
+        {
+            "name": "Debug MPS Router (Go)",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/mps-router/cmd/main.go",
+            "cwd": "${workspaceFolder}/mps-router",
+            "envFile": "${workspaceFolder}/.env"
+        },
+        {
+            "name": "Debug Web UI (Chrome)",
+            "type": "pwa-chrome",
+            "request": "launch",
+            "url": "http://localhost:4200",
+            "webRoot": "${workspaceFolder}/sample-web-ui"
+        }
+    ],
+    "compounds": [
+        {
+            "name": "Debug All Services",
+            "configurations": ["Debug MPS (Node.js)", "Debug RPS (Node.js)", "Debug MPS Router (Go)", "Debug Web UI (Chrome)"]
+        }
+    ]
+}

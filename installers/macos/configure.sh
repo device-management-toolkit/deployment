@@ -6,7 +6,7 @@
 set -e
 
 APP_DIR="/usr/local/device-management-toolkit"
-CONFIG_FILE="$APP_DIR/config/config.yml"
+CONFIG_FILE="/Library/Application Support/device-management-toolkit/config.yml"
 VERSION="VERSION_PLACEHOLDER"
 
 # Colors for output
@@ -143,8 +143,13 @@ echo -e "${BLUE}Applying configuration...${NC}"
 ADMIN_USERNAME_YAML=$(yaml_escape "$ADMIN_USERNAME")
 ADMIN_PASSWORD_YAML=$(yaml_escape "$ADMIN_PASSWORD")
 
-# Generate config file
-cat > "$CONFIG_FILE" << EOF
+# Emit the full config to $1 with adminPassword set to the YAML-escaped value in
+# $2. Called twice: blank password for the world-readable machine seed, the real
+# typed password only for the owner-only per-user config.
+write_console_config() {
+    local dest="$1"
+    local admin_password_yaml="$2"
+    cat > "$dest" << EOF
 app:
   name: console
   repo: device-management-toolkit/console
@@ -178,7 +183,7 @@ ea:
 auth:
   disabled: false
   adminUsername: "$ADMIN_USERNAME_YAML"
-  adminPassword: "$ADMIN_PASSWORD_YAML"
+  adminPassword: "$admin_password_yaml"
   jwtKey: $JWT_KEY
   jwtExpiration: 24h0m0s
   redirectionJWTExpiration: 5m0s
@@ -195,18 +200,67 @@ auth:
 ui:
   externalUrl: ""
 EOF
+}
 
-# Restrict config to root (contains secrets)
-chmod 600 "$CONFIG_FILE"
+# Machine seed (ensure its dir exists first). The admin password is a per-user
+# secret, so the world-readable 644 seed gets a BLANK adminPassword — exactly
+# like postinstall. The typed password goes only into the owner-only per-user
+# config below; other users still generate their own on first tray launch.
+# (jwtKey stays shared in the seed — see the known limitation in CREDENTIALS.md.)
+mkdir -p "$(dirname "$CONFIG_FILE")"
+write_console_config "$CONFIG_FILE" ""
+
+# Root-owned, world-readable seed so every user's tray reseeds; chown reasserts
+# root ownership in case an older non-root-owned config.yml was present.
+chown root:wheel "$CONFIG_FILE"
+chmod 644 "$CONFIG_FILE"
 echo "  Configuration saved to $CONFIG_FILE"
 
-# Restart the console if it's running. Match both launch paths (binary and dmt-console symlink).
-WAS_RUNNING=false
+# Determine the unelevated user whose tray reads the per-user config.
 if [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
     CONSOLE_USER="$SUDO_USER"
 else
     CONSOLE_USER=$(stat -f "%Su" /dev/console)
 fi
+
+# Write the typed password into the user's per-user tray config; the tray reads
+# that file and only auto-seeds it when absent, so a reconfigure must overwrite
+# it or login keeps the old password (401). This is the ONLY file that carries
+# the typed password — never the world-readable seed.
+if [ -n "$CONSOLE_USER" ] && [ "$CONSOLE_USER" != "root" ]; then
+    USER_HOME=$(dscl . -read "/Users/$CONSOLE_USER" NFSHomeDirectory 2>/dev/null | awk '{print $2}')
+    if [ -z "$USER_HOME" ]; then
+        USER_HOME="/Users/$CONSOLE_USER"
+    fi
+    if [ -d "$USER_HOME" ]; then
+        USER_DATA_DIR="$USER_HOME/Library/Application Support/device-management-toolkit"
+        USER_CONFIG_DIR="$USER_DATA_DIR/config"
+        mkdir -p "$USER_CONFIG_DIR"
+        # Hand the dirs to the user (non-recursive — avoids chown -R following a
+        # symlink under the user-owned tree): the unelevated tray creates
+        # console.db in the data dir ("cannot access db" otherwise).
+        chown "$CONSOLE_USER" "$USER_DATA_DIR" "$USER_CONFIG_DIR"
+        chmod 700 "$USER_DATA_DIR" "$USER_CONFIG_DIR"
+        # Build the per-user config (with the real password) in a mktemp file —
+        # created 600, so the password is never world-readable even briefly —
+        # then install it owner-only in one step.
+        TMP_USER_CONFIG=$(mktemp)
+        write_console_config "$TMP_USER_CONFIG" "$ADMIN_PASSWORD_YAML"
+        install -m 600 -o "$CONSOLE_USER" "$TMP_USER_CONFIG" "$USER_CONFIG_DIR/config.yml"
+        rm -f "$TMP_USER_CONFIG"
+        echo "  Updated per-user config for $CONSOLE_USER"
+    fi
+else
+    # No unelevated user to write to (root-only/headless): the seed's password is
+    # blank, so the typed password can't be applied — that user's tray will
+    # generate its own on first launch. Re-run dmt-configure from a GUI session.
+    echo -e "${YELLOW}  Could not resolve a desktop user; typed password not applied.${NC}"
+    echo "  The tray will generate a password on first launch (read it from the"
+    echo "  per-user config), or re-run 'sudo dmt-configure' while logged in."
+fi
+
+# Restart the console if it's running. Match both launch paths (binary and dmt-console symlink).
+WAS_RUNNING=false
 if pgrep -f "$APP_DIR/console" > /dev/null 2>&1 || pgrep -f "/usr/local/bin/dmt-console" > /dev/null 2>&1; then
     WAS_RUNNING=true
     echo "  Stopping running instance..."

@@ -6,6 +6,7 @@
 set -e
 
 APP_DIR="/usr/local/device-management-toolkit"
+CONFIG_DIR="/Library/Application Support/device-management-toolkit"
 CREDS_FILE="$APP_DIR/INITIAL_CREDENTIALS.txt"
 SYMLINKS=(
     "/usr/local/bin/dmt-console"
@@ -40,12 +41,12 @@ fi
 
 # Ask about data preservation
 echo "Do you want to remove configuration and data files?"
-echo "  - Configuration: $APP_DIR/config/"
+echo "  - Configuration: $CONFIG_DIR/"
 echo "  - Database:      ~/Library/Application Support/device-management-toolkit/"
 echo "  - Encryption key from the user's login keychain"
 echo ""
-echo "Choosing No preserves only config.yml at $APP_DIR/config/. The binary,"
-echo "CLI symlinks, and management scripts are removed in both cases."
+echo "Choosing No preserves $CONFIG_DIR/ (config.yml and anything else there)."
+echo "The binary, CLI symlinks, and management scripts are removed in both cases."
 echo ""
 read -p "Remove all data? [y/N]: " REMOVE_DATA
 
@@ -76,7 +77,7 @@ rm -f "$CREDS_FILE"
 # DB and encryption key are tied together — removed as a unit when opted in.
 if [[ "$REMOVE_DATA" =~ ^[Yy]$ ]]; then
     echo "Removing configuration and data..."
-    rm -rf "$APP_DIR/config"
+    rm -rf "$CONFIG_DIR"
     rmdir "$APP_DIR" 2>/dev/null || true
 
     CONSOLE_USER=$(resolve_install_user)
@@ -98,7 +99,7 @@ if [[ "$REMOVE_DATA" =~ ^[Yy]$ ]]; then
         fi
     fi
 else
-    echo "Keeping configuration at $APP_DIR/config/ (binary and CLI tools removed)."
+    echo "Keeping configuration at $CONFIG_DIR/ (binary and CLI tools removed)."
 fi
 
 # Forget the package receipts (allows clean reinstall)
@@ -111,10 +112,10 @@ echo "=============================================="
 echo "DMT Console has been uninstalled."
 if [[ ! "$REMOVE_DATA" =~ ^[Yy]$ ]]; then
     echo ""
-    echo "Configuration preserved at: $APP_DIR/config/"
+    echo "Configuration preserved at: $CONFIG_DIR/"
     echo "(The database in ~/Library/Application Support/ and the keychain entry are also untouched.)"
     echo ""
-    echo "To completely remove, run: sudo rm -rf $APP_DIR"
+    echo "For a full cleanup, rerun 'sudo dmt-uninstall' and answer 'y' to remove all data."
 fi
 echo "=============================================="
 

@@ -269,14 +269,31 @@ Section "Console Application" SecApp
   ; Install the edition-specific binary as console.exe
   File /oname=console.exe "${BINARY}"
 
-  ; Create config directory
-  CreateDirectory "$INSTDIR\config"
-
-  ; Create data directory
-  CreateDirectory "$INSTDIR\data"
-
-  ; Generate config.yml
+  ; Generate config.yml in the machine-wide data dir (not the program dir)
   Call WriteConfigFile
+
+  ; Clear stale per-user config so each profile's tray re-seeds new creds (DB kept).
+  ; Read the real profiles dir (C:\Users) from the registry.
+  ReadRegStr $R2 HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList" "ProfilesDirectory"
+  ExpandEnvStrings $R2 $R2
+  FindFirst $R0 $R1 "$R2\*"
+  perUserClearLoop:
+    StrCmp $R1 "" perUserClearDone
+    StrCmp $R1 "." perUserClearNext
+    StrCmp $R1 ".." perUserClearNext
+    ; Skip well-known non-user entries (Public, Default, All Users junction).
+    StrCmp $R1 "Public" perUserClearNext
+    StrCmp $R1 "Default" perUserClearNext
+    StrCmp $R1 "Default User" perUserClearNext
+    StrCmp $R1 "All Users" perUserClearNext
+    ; Only touch profiles that actually have the per-user config.
+    IfFileExists "$R2\$R1\AppData\Roaming\device-management-toolkit\config\config.yml" 0 perUserClearNext
+    Delete "$R2\$R1\AppData\Roaming\device-management-toolkit\config\config.yml"
+  perUserClearNext:
+    FindNext $R0 $R1
+    Goto perUserClearLoop
+  perUserClearDone:
+  FindClose $R0
 
   ; Store installation folder and edition
   WriteRegStr HKLM "Software\DeviceManagementToolkit\Console" "InstallDir" "$INSTDIR"
@@ -370,7 +387,11 @@ Function WriteConfigFile
   ${StrRep} $JwtKey $JwtKey "$\r" ""
   ${StrRep} $JwtKey $JwtKey "$\n" ""
 
-  FileOpen $1 "$INSTDIR\config\config.yml" w
+  ; Machine-wide config in %ProgramData% ($APPDATA under all-users context;
+  ; NSIS has no $COMMONAPPDATA constant).
+  SetShellVarContext all
+  CreateDirectory "$APPDATA\device-management-toolkit"
+  FileOpen $1 "$APPDATA\device-management-toolkit\config.yml" w
 
   FileWrite $1 "app:$\r$\n"
   FileWrite $1 "  name: console$\r$\n"
@@ -423,6 +444,7 @@ Function WriteConfigFile
   FileWrite $1 "  externalUrl: $\"$\"$\r$\n"
 
   FileClose $1
+  SetShellVarContext current
 FunctionEnd
 
 ;--------------------------------
@@ -440,6 +462,11 @@ FunctionEnd
 ; Uninstaller Section
 
 Section "Uninstall"
+  ; Stop the tray first so its locked files (console.exe, console.db) can be removed.
+  nsExec::Exec 'taskkill /F /IM console.exe'
+  Pop $0
+  Sleep 500
+
   ; Remove startup entry if installed
   ReadRegStr $0 HKLM "Software\DeviceManagementToolkit\Console" "StartupInstalled"
   ${If} $0 == "1"
@@ -462,12 +489,15 @@ Section "Uninstall"
 
   ; Remove files
   Delete "$INSTDIR\console.exe"
-  Delete "$INSTDIR\config\config.yml"
   Delete "$INSTDIR\Uninstall.exe"
 
+  ; Remove machine-wide config seed (%ProgramData%).
+  SetShellVarContext all
+  Delete "$APPDATA\device-management-toolkit\config.yml"
+  RMDir "$APPDATA\device-management-toolkit"
+  SetShellVarContext current
+
   ; Remove directories (only if empty)
-  RMDir "$INSTDIR\config"
-  RMDir "$INSTDIR\data"
   RMDir "$INSTDIR"
   RMDir "$PROGRAMFILES64\Device Management Toolkit"
 
@@ -486,10 +516,32 @@ Section "Uninstall"
   ; keeping one without the other is useless, so they're removed as a unit.
   ; Silent uninstalls preserve data by default.
   IfSilent skip_data_prompt
-  MessageBox MB_YESNO|MB_ICONQUESTION "Remove user data (database, logs, and encryption key from Credential Manager)?$\r$\n$\r$\nChoose No to preserve your configuration for a future reinstall." /SD IDNO IDNO skip_data_prompt
+  MessageBox MB_YESNO|MB_ICONQUESTION "Remove Console data for ALL user profiles on this machine (databases, logs, and the encryption key from the uninstalling user's Credential Manager)?$\r$\n$\r$\nThis deletes every user's data, not just yours. Choose No to preserve it for a future reinstall." /SD IDNO IDNO skip_data_prompt
     DetailPrint "Removing user data..."
-    RMDir /r "$APPDATA\device-management-toolkit"
-    RMDir /r "$LOCALAPPDATA\device-management-toolkit"
+    ; Remove per-user data for every profile (C:\Users from the registry).
+    ReadRegStr $R2 HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList" "ProfilesDirectory"
+    ExpandEnvStrings $R2 $R2
+    FindFirst $R0 $R1 "$R2\*"
+    unDataLoop:
+      StrCmp $R1 "" unDataDone
+      StrCmp $R1 "." unDataNext
+      StrCmp $R1 ".." unDataNext
+      ; Skip well-known non-user entries (Public, Default, All Users junction).
+      StrCmp $R1 "Public" unDataNext
+      StrCmp $R1 "Default" unDataNext
+      StrCmp $R1 "Default User" unDataNext
+      StrCmp $R1 "All Users" unDataNext
+      IfFileExists "$R2\$R1\AppData\Roaming\device-management-toolkit\*.*" 0 unDataLocal
+      RMDir /r "$R2\$R1\AppData\Roaming\device-management-toolkit"
+    unDataLocal:
+      IfFileExists "$R2\$R1\AppData\Local\device-management-toolkit\*.*" 0 unDataNext
+      RMDir /r "$R2\$R1\AppData\Local\device-management-toolkit"
+    unDataNext:
+      FindNext $R0 $R1
+      Goto unDataLoop
+    unDataDone:
+    FindClose $R0
+    ; Credential Manager is per-user; only the uninstalling user's key is reachable here.
     nsExec::Exec 'cmdkey /delete:device-management-toolkit:default-security-key'
     Pop $0
   skip_data_prompt:

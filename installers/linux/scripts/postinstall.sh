@@ -4,8 +4,8 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Tray-mode install (mirrors macOS PKG postinstall):
-#   - on first install: generate /opt/dmt-console/config/config.yml with a random
-#     JWT, encryption key, and admin password; write INITIAL_CREDENTIALS.txt
+#   - on first install: generate /etc/dmt-console/config/config.yml with a random JWT,
+#     encryption key, and admin password; write INITIAL_CREDENTIALS.txt
 #   - auto-launch `dmt-console --tray` as the detected desktop user (if any)
 #   - XDG autostart entry (shipped under /etc/xdg/autostart/) handles future
 #     logins; no systemd service.
@@ -13,7 +13,9 @@
 set -e
 
 APP_DIR=/opt/dmt-console
-CONFIG_DIR="$APP_DIR/config"
+# Machine-wide seed, world-readable like %ProgramData% on Windows, so every
+# user's tray seeds the same credentials. Per-user copy stays owner-only.
+CONFIG_DIR=/etc/dmt-console/config
 CONFIG_FILE="$CONFIG_DIR/config.yml"
 TEMPLATE=/usr/share/dmt-console/config.yml.tmpl
 
@@ -71,10 +73,9 @@ if [ "$FIRST_INSTALL" = "1" ] && [ ! -f "$CONFIG_FILE" ]; then
         -e "s|@TLS@|true|" \
         -e "s|@VERSION@|installed|" \
         "$TEMPLATE" > "$CONFIG_FILE"
-    chmod 0600 "$CONFIG_FILE"
-    if [ -n "$CONSOLE_USER" ]; then
-        chown "$CONSOLE_USER" "$CONFIG_FILE" 2>/dev/null || true
-    fi
+    # World-readable, root-owned seed (POSIX analog of %ProgramData%): every
+    # user's tray reads it to seed its own owner-only copy.
+    chmod 0644 "$CONFIG_FILE"
 
     # Initial credentials file. Stash in the app dir and chown to the desktop
     # user so they can read it without sudo.

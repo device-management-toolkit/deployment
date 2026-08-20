@@ -7,7 +7,7 @@ set -e
 
 NEW_VERSION="VERSION_PLACEHOLDER"
 APP_DIR="/usr/local/device-management-toolkit"
-CONFIG_FILE="$APP_DIR/config/config.yml"
+CONFIG_FILE="/Library/Application Support/device-management-toolkit/config.yml"
 PKG_IDS=("com.intel.dmt-console-ui" "com.intel.dmt-console-headless")
 
 # Build-time sanity: refuse to run if the version wasn't stamped (look for digits, not the literal placeholder string — build-time sed would rewrite that too).

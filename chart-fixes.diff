@@ -1,0 +1,223 @@
+diff --git a/charts/templates/console.yaml b/charts/templates/console.yaml
+--- a/charts/templates/console.yaml	2026-08-27 08:14:25.235265906 +0530
++++ b/charts/templates/console.yaml	2026-08-27 08:14:25.231152706 +0530
+@@ -26,7 +26,6 @@
+ kind: Deployment
+ metadata:
+   name: console
+-  namespace: default
+ spec:
+   replicas: {{ .Values.console.replicaCount }}
+   selector:
+@@ -44,58 +43,65 @@
+           image: {{ .Values.images.console }}
+           readinessProbe:
+             httpGet:
+-              path: /api/v1/health
++              path: /healthz
+               port: 3000
+             periodSeconds: 12
+             timeoutSeconds: 12
+             failureThreshold: 3
+           env:
+-            - name: "CONSOLE_HEADLESS"
+-              value: "{{ .Values.console.headless }}"
+-            - name: "CONSOLE_LOG_LEVEL"
+-              value: "{{ .Values.console.logLevel }}"
+-            - name: "CONSOLE_COMMON_NAME"
++            - name: "APP_COMMON_NAME"
+               value: "{{ .Values.console.commonName }}"
+-            - name: "CONSOLE_CONNECTION_STRING"
++            - name: "APP_ENCRYPTION_KEY"
++              valueFrom:
++                secretKeyRef:
++                  name: console
++                  key: appEncryptionKey
++            - name: "APP_DISABLE_CIRA"
++              value: "false"
++            - name: "HTTP_PORT"
++              value: "3000"
++            - name: "HTTP_HOST"
++              value: "0.0.0.0"
++            - name: "HTTP_TLS_ENABLED"
++              value: "false"
++            - name: "LOG_LEVEL"
++              value: "{{ .Values.console.logLevel }}"
++            - name: "DB_PROVIDER"
++              value: "postgres"
++            - name: "DB_URL"
+               valueFrom:
+                 secretKeyRef:
+                   name: console
+                   key: connectionString
+-            - name: "CONSOLE_VAULT_ADDRESS"
++            - name: "SECRETS_ADDR"
+               value: "http://{{ .Release.Name }}-vault:8200"
+-            - name: "CONSOLE_SECRETS_PATH"
++            - name: "SECRETS_PATH"
+               value: 'kv/data/'
+-            - name: "CONSOLE_PORT"
+-              value: '4433'
+-            - name: "CONSOLE_INSTANCE_NAME"
+-              valueFrom:
+-                fieldRef:
+-                  fieldPath: status.podIP
+-            - name: "CONSOLE_JWT_SECRET"
++            - name: "SECRETS_TOKEN"
++              valueFrom:
++                secretKeyRef:
++                  name: vault
++                  key: vaultKey
++            - name: "AUTH_JWT_KEY"
+               valueFrom:
+                 secretKeyRef:
+                   name: device-mgmt-toolkit-admin-jwt
+                   key: secret
+-            - name: "CONSOLE_JWT_ISSUER"
++            - name: "AUTH_ISSUER"
+               valueFrom:
+                 secretKeyRef:
+                   name: device-mgmt-toolkit-admin-jwt
+                   key: key
+-            - name: CONSOLE_WEB_ADMIN_USER
++            - name: "AUTH_ADMIN_USERNAME"
+               valueFrom:
+                 secretKeyRef:
+                   name: consoleweb
+                   key: user
+-            - name: CONSOLE_WEB_ADMIN_PASSWORD
++            - name: "AUTH_ADMIN_PASSWORD"
+               valueFrom:
+                 secretKeyRef:
+                   name: consoleweb
+                   key: password
+-            - name: CONSOLE_VAULT_TOKEN
+-              valueFrom:
+-                secretKeyRef:
+-                  name: vault
+-                  key: vaultKey
+           ports:
+             - containerPort: 3000
+               name: webapi
+diff --git a/charts/templates/kong.yaml b/charts/templates/kong.yaml
+--- a/charts/templates/kong.yaml	2026-08-27 08:14:25.235298892 +0530
++++ b/charts/templates/kong.yaml	2026-08-27 08:14:25.231394012 +0530
+@@ -3,7 +3,6 @@
+ kind: Ingress
+ metadata:
+   name: web-mps
+-  namespace: default
+   annotations:
+     konghq.com/strip-path: "true"
+     konghq.com/plugins: device-mgmt-cors
+@@ -45,7 +44,6 @@
+ kind: Ingress
+ metadata:
+   name: web-mps-login
+-  namespace: default
+   annotations:
+     konghq.com/strip-path: "true"
+     konghq.com/plugins: device-mgmt-cors,api-login-rewrite
+@@ -75,7 +73,6 @@
+ kind: Ingress
+ metadata:
+   name: mps-redirection
+-  namespace: default
+   annotations:
+     konghq.com/strip-path: "true"
+     konghq.com/plugins: device-mgmt-cors,mps-redirection-rewrite
+@@ -105,7 +102,6 @@
+ kind: Ingress
+ metadata:
+   name: rps
+-  namespace: default
+   annotations:
+     konghq.com/strip-path: "true"
+     konghq.com/plugins: device-mgmt-toolkit-jwt, device-mgmt-cors,admin-acl
+@@ -126,7 +122,6 @@
+ kind: Ingress
+ metadata:
+   name: mps
+-  namespace: default
+   annotations:
+     konghq.com/strip-path: "true"
+     konghq.com/plugins: device-mgmt-toolkit-jwt,device-mgmt-cors, admin-acl
+diff --git a/charts/templates/mpsrouter.yaml b/charts/templates/mpsrouter.yaml
+--- a/charts/templates/mpsrouter.yaml	2026-08-27 08:14:25.235333998 +0530
++++ b/charts/templates/mpsrouter.yaml	2026-08-27 08:14:25.231527353 +0530
+@@ -22,7 +22,6 @@
+ kind: Deployment
+ metadata:
+   name: mpsrouter
+-  namespace: default
+ spec:
+   replicas: {{ .Values.mpsrouter.replicaCount }}
+   selector:
+@@ -31,7 +30,7 @@
+   template:
+     metadata:
+       annotations:
+-        kuma.io/direct-access-services: "mps_default_svc_3000"
++        kuma.io/direct-access-services: "console_{{ .Release.Namespace }}_svc_3000"
+       labels:
+         app: mpsrouter
+     spec:
+diff --git a/charts/templates/rps.yaml b/charts/templates/rps.yaml
+--- a/charts/templates/rps.yaml	2026-08-27 08:14:25.235366295 +0530
++++ b/charts/templates/rps.yaml	2026-08-27 08:14:25.231643593 +0530
+@@ -26,7 +26,6 @@
+ kind: Deployment
+ metadata:
+   name: rps
+-  namespace: default
+ spec:
+   replicas: {{ .Values.rps.replicaCount }}
+   selector:
+@@ -60,7 +59,7 @@
+             - name: "RPS_SECRETS_PATH"
+               value: 'kv/data/'
+             - name: "RPS_MPS_SERVER"
+-              value: "http://mps:3000"
++              value: "http://console:3000"
+             - name: "RPS_CONNECTION_STRING"
+               valueFrom:
+                 secretKeyRef:
+diff --git a/charts/templates/webui.yaml b/charts/templates/webui.yaml
+--- a/charts/templates/webui.yaml	2026-08-27 08:14:25.235398957 +0530
++++ b/charts/templates/webui.yaml	2026-08-27 08:14:25.226613279 +0530
+@@ -19,10 +19,8 @@
+       location / {
+           root   /usr/share/nginx/html;
+           index  index.html index.htm;
++          try_files $uri $uri/ /index.html;
+       }
+-
+-      error_page  404              /index.html;
+-
+       # redirect server error pages to the static page /50x.html
+       #
+       error_page   500 502 503 504  /50x.html;
+@@ -78,9 +76,9 @@
+             subPath: nginx.conf
+         env:
+           - name: "MPS_SERVER"
+-            value: "https://{{.Values.console.commonName}}/mps"
++            value: "https://{{ .Values.gateway.publicUrl }}/mps"
+           - name: "RPS_SERVER"
+-            value: "https://{{.Values.console.commonName}}/rps"
++            value: "https://{{ .Values.gateway.publicUrl }}/rps"
+         ports:
+         - containerPort: 80
+           name: ui
+diff --git a/charts/values.yaml b/charts/values.yaml
+--- a/charts/values.yaml	2026-08-27 08:14:25.235511960 +0530
++++ b/charts/values.yaml	2026-08-27 08:14:25.219224363 +0530
+@@ -60,3 +60,8 @@
+         parameters: []
+     http:
+       enabled: false
++
++gateway:
++  # Public host[:port] reached by browser clients. The web UI builds its MPS
++  # and RPS API URLs from this; separate from the Console common name.
++  publicUrl:

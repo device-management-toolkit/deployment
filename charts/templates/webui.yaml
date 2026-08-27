@@ -8,21 +8,19 @@ kind: ConfigMap
 metadata:
   name: nginx-config-file
   labels:
-    app: nginx-conf 
+    app: nginx-conf
 data:
   nginx.conf: |
     server {
       listen 80 default_server;
       listen [::]:80 default_server;
       server_name _;
-  
+
       location / {
           root   /usr/share/nginx/html;
           index  index.html index.htm;
+          try_files $uri $uri/ /index.html;
       }
-
-      error_page  404              /index.html;
-
       # redirect server error pages to the static page /50x.html
       #
       error_page   500 502 503 504  /50x.html;
@@ -78,9 +76,9 @@ spec:
             subPath: nginx.conf
         env:
           - name: "MPS_SERVER"
-            value: "https://{{.Values.console.commonName}}/mps"
+            value: "https://{{ .Values.gateway.publicUrl }}/mps"
           - name: "RPS_SERVER"
-            value: "https://{{.Values.console.commonName}}/rps"
+            value: "https://{{ .Values.gateway.publicUrl }}/rps"
         ports:
         - containerPort: 80
           name: ui

@@ -76,9 +76,9 @@ spec:
             subPath: nginx.conf
         env:
           - name: "MPS_SERVER"
-            value: "https://{{ .Values.gateway.publicUrl }}/mps"
+            value: "https://{{ include "installServersChart.publicUrl" . }}/mps"
           - name: "RPS_SERVER"
-            value: "https://{{ .Values.gateway.publicUrl }}/rps"
+            value: "https://{{ include "installServersChart.publicUrl" . }}/rps"
         ports:
         - containerPort: 80
           name: ui

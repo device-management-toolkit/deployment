@@ -26,7 +26,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: rps
-  namespace: default
 spec:
   replicas: {{ .Values.rps.replicaCount }}
   selector:
@@ -60,7 +59,7 @@ spec:
             - name: "RPS_SECRETS_PATH"
               value: 'kv/data/'
             - name: "RPS_MPS_SERVER"
-              value: "http://mps:3000"
+              value: "http://console:3000"
             - name: "RPS_CONNECTION_STRING"
               valueFrom:
                 secretKeyRef:

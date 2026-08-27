@@ -60,3 +60,8 @@ kong:
         parameters: []
     http:
       enabled: false
+
+gateway:
+  # Public host[:port] reached by browser clients. The web UI builds its MPS
+  # and RPS API URLs from this; separate from the Console common name.
+  publicUrl:

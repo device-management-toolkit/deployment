@@ -134,9 +134,67 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: mpsrouter
+                name: console
                 port:
-                  number: 8003
+                  number: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mps-ciracert
+  annotations:
+    konghq.com/strip-path: "true"
+    konghq.com/plugins: device-mgmt-toolkit-jwt,device-mgmt-cors,mps-ciracert-rewrite
+spec:
+  ingressClassName: kong
+  rules:
+    - http:
+        paths:
+          - path: /mps/api/v1/ciracert
+            pathType: Exact
+            backend:
+              service:
+                name: console
+                port:
+                  number: 3000
+---
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: mps-ciracert-rewrite
+config:
+  replace:
+    uri: "/api/v1/ciracert"
+plugin: request-transformer
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mps-admin-ciracert
+  annotations:
+    konghq.com/strip-path: "true"
+    konghq.com/plugins: device-mgmt-toolkit-jwt,device-mgmt-cors,mps-admin-ciracert-rewrite
+spec:
+  ingressClassName: kong
+  rules:
+    - http:
+        paths:
+          - path: /mps/api/v1/admin/ciracert
+            pathType: Exact
+            backend:
+              service:
+                name: console
+                port:
+                  number: 3000
+---
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: mps-admin-ciracert-rewrite
+config:
+  replace:
+    uri: "/api/v1/ciracert"
+plugin: request-transformer
 ---
 apiVersion: configuration.konghq.com/v1beta1
 kind: TCPIngress

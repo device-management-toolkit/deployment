@@ -53,12 +53,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{/*
 Public host[:port] that browser clients use to reach the gateway.
-Falls back to the Console common name so charts that predate gateway.publicUrl
-keep working, and fails with a clear message when neither is set.
+Falls back to console.commonName if gateway.publicUrl is not set.
 */}}
 {{- define "installServersChart.publicUrl" -}}
-{{- $url := default .Values.console.commonName .Values.gateway.publicUrl -}}
-{{- required "Set gateway.publicUrl (or console.commonName) when webui.enabled is true" $url -}}
+{{- default .Values.console.commonName .Values.gateway.publicUrl -}}
 {{- end -}}
 
 {{/*

@@ -159,10 +159,23 @@ http:
     enabled: $TLS_ENABLED
     certFile: ""
     keyFile: ""
+  # Origins allowed to make cross-origin calls and to open a redirection
+  # (KVM/SOL/IDER) websocket. Add the origin the UI is served from if it is not
+  # this server. Never use "*": it exposes every API response to any site, and
+  # the relay refuses cross-origin handshakes while it is set.
   allowed_origins:
-    - "*"
+    - "https://localhost:$HTTP_PORT"
+    - "https://127.0.0.1:$HTTP_PORT"
+    - "http://localhost:$HTTP_PORT"
+    - "http://127.0.0.1:$HTTP_PORT"
   allowed_headers:
-    - "*"
+    - "Origin"
+    - "Accept"
+    - "Content-Type"
+    - "Content-Length"
+    - "Authorization"
+    - "If-Match"
+  allow_credentials: true
 logger:
   log_level: info
 secrets:

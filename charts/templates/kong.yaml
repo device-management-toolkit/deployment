@@ -3,7 +3,6 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: web-mps
-  namespace: default
   annotations:
     konghq.com/strip-path: "true"
     konghq.com/plugins: device-mgmt-cors
@@ -24,28 +23,27 @@ spec:
             backend:
               service:
                 name: rps
-                port: 
+                port:
                   number: 8080
           - path: /deactivate
             pathType: Prefix
             backend:
               service:
                 name: rps
-                port: 
+                port:
                   number: 8080
           - path: /maintenance
             pathType: Prefix
             backend:
               service:
                 name: rps
-                port: 
+                port:
                   number: 8080
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: web-mps-login
-  namespace: default
   annotations:
     konghq.com/strip-path: "true"
     konghq.com/plugins: device-mgmt-cors,api-login-rewrite
@@ -75,7 +73,6 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: mps-redirection
-  namespace: default
   annotations:
     konghq.com/strip-path: "true"
     konghq.com/plugins: device-mgmt-cors,mps-redirection-rewrite
@@ -89,7 +86,7 @@ spec:
             backend:
               service:
                 name: mpsrouter
-                port: 
+                port:
                   number: 8003
 ---
 apiVersion: configuration.konghq.com/v1
@@ -105,7 +102,6 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: rps
-  namespace: default
   annotations:
     konghq.com/strip-path: "true"
     konghq.com/plugins: device-mgmt-toolkit-jwt, device-mgmt-cors,admin-acl
@@ -126,7 +122,6 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: mps
-  namespace: default
   annotations:
     konghq.com/strip-path: "true"
     konghq.com/plugins: device-mgmt-toolkit-jwt,device-mgmt-cors, admin-acl
@@ -161,7 +156,7 @@ kind: KongPlugin
 metadata:
   name: device-mgmt-toolkit-jwt
 plugin: jwt
-config: 
+config:
   claims_to_verify:
     - exp
 ---

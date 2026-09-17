@@ -76,17 +76,49 @@ spec:
             - containerPort: 8081
               name: rpsweb
 ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Release.Name }}-seed-mps-certs
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Release.Name }}-seed-mps-certs
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create", "get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Release.Name }}-seed-mps-certs
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Release.Name }}-seed-mps-certs
+roleRef:
+  kind: Role
+  name: {{ .Release.Name }}-seed-mps-certs
+  apiGroup: rbac.authorization.k8s.io
+---
 # Seeds a throwaway self-signed 'MPSCerts' Vault secret so rps's CIRA/TLS
 # root-key lookup (activation.ts fetchMPSRootKey) has something to read.
-# That secret used to be created on startup by the old standalone mps
-# microservice (mps/src/utils/certificates.ts storeCertificates); console
-# replaces mps but never writes it, so nothing in this chart does anymore
-# and rps activation fails with 'Failed to fetch MPS root key from vault'.
-# Not for production: generates a brand-new root cert on every cluster where
-# the secret is absent, rather than a real provisioned MPS root of trust.
-# Uses Vault's own PKI engine to generate the cert instead of openssl, so the
+# Also seeds a console root cert into Vault plus a 'console-root-cert' k8s
+# Secret mounted at /config/root_cert.pem (see console.yaml): console's own
+# LoadOrGenerateRootCertificateWithVault loads a Vault-stored root cert into
+# memory fine, but never writes it back to disk, and the separate
+# /api/v1/ciracert HTTP handler reads that file directly — so on any pod
+# restart with no persistent volume it 500s with 'failed to read certificate
+# file' even though Vault has a perfectly good cert.
+# Not for production: generates brand-new certs on every cluster where they
+# are absent, rather than a real provisioned root of trust.
+# Uses Vault's own PKI engine to generate certs instead of openssl, so the
 # only image needed is hashicorp/vault (already pulled for the Vault pod
-# itself) and no outbound internet access is required from the pod.
+# itself) and no outbound internet access is required from the pod. The k8s
+# Secret is created via the Kubernetes API using this Job's own
+# ServiceAccount token (busybox wget's --post-data), since the vault image
+# has no kubectl binary.
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -100,6 +132,7 @@ spec:
   template:
     spec:
       restartPolicy: Never
+      serviceAccountName: {{ .Release.Name }}-seed-mps-certs
       containers:
         - name: seed-mps-certs
           image: hashicorp/vault:1.21
@@ -111,20 +144,55 @@ spec:
               # kv-v2 mount this chart's other components read from; dev-mode
               # Vault only auto-mounts 'secret', so it may not exist yet.
               vault secrets enable -path=kv kv-v2 2>/dev/null || true
+
               if vault kv get -field=root_key kv/MPSCerts > /dev/null 2>&1; then
                 echo "MPSCerts already present in Vault; nothing to do."
-                exit 0
+              else
+                vault secrets enable -path=pki-mpscerts pki 2>/dev/null || true
+                vault secrets tune -max-lease-ttl=87600h pki-mpscerts > /dev/null
+                vault write -format=json pki-mpscerts/root/generate/exported \
+                  common_name="MPSRoot" ttl=87600h > /tmp/mpsroot.json
+                mps_key=$(grep '"private_key"' /tmp/mpsroot.json | sed -E 's/^[[:space:]]*"private_key": ?"(.*)",?[[:space:]]*$/\1/')
+                mps_ca=$(grep '"certificate"' /tmp/mpsroot.json | sed -E 's/^[[:space:]]*"certificate": ?"(.*)",?[[:space:]]*$/\1/')
+                printf '{"root_key":"%s","root_ca":"%s","web_tls_config":{"ca":"%s"},"mps_tls_config":{"ca":"%s"}}' \
+                  "$mps_key" "$mps_ca" "$mps_ca" "$mps_ca" > /tmp/mps_certs.json
+                vault kv put kv/MPSCerts @/tmp/mps_certs.json
+                vault secrets disable pki-mpscerts 2>/dev/null || true
               fi
-              vault secrets enable -path=pki-mpscerts pki 2>/dev/null || true
-              vault secrets tune -max-lease-ttl=87600h pki-mpscerts > /dev/null
-              vault write -format=json pki-mpscerts/root/generate/exported \
-                common_name="MPSRoot" ttl=87600h > /tmp/root.json
-              root_key=$(grep '"private_key"' /tmp/root.json | sed -E 's/^[[:space:]]*"private_key": ?"(.*)",?[[:space:]]*$/\1/')
-              root_ca=$(grep '"certificate"' /tmp/root.json | sed -E 's/^[[:space:]]*"certificate": ?"(.*)",?[[:space:]]*$/\1/')
-              printf '{"root_key":"%s","root_ca":"%s","web_tls_config":{"ca":"%s"},"mps_tls_config":{"ca":"%s"}}' \
-                "$root_key" "$root_ca" "$root_ca" "$root_ca" > /tmp/mps_certs.json
-              vault kv put kv/MPSCerts @/tmp/mps_certs.json
-              vault secrets disable pki-mpscerts 2>/dev/null || true
+
+              if vault kv get -field=cert kv/certs/root > /dev/null 2>&1; then
+                echo "Console root cert already present in Vault; nothing to do."
+              else
+                vault secrets enable -path=pki-console-root pki 2>/dev/null || true
+                vault secrets tune -max-lease-ttl=87600h pki-console-root > /dev/null
+                vault write -format=json pki-console-root/root/generate/exported \
+                  common_name="{{ .Values.console.commonName }}" ttl=87600h > /tmp/consoleroot.json
+                console_key=$(grep '"private_key"' /tmp/consoleroot.json | sed -E 's/^[[:space:]]*"private_key": ?"(.*)",?[[:space:]]*$/\1/')
+                console_cert=$(grep '"certificate"' /tmp/consoleroot.json | sed -E 's/^[[:space:]]*"certificate": ?"(.*)",?[[:space:]]*$/\1/')
+                printf '{"cert":"%s","key":"%s"}' "$console_cert" "$console_key" > /tmp/console_root.json
+                vault kv put kv/certs/root @/tmp/console_root.json
+                vault secrets disable pki-console-root 2>/dev/null || true
+              fi
+
+              # The console-root-cert k8s Secret backs a volume mount, so it
+              # must exist even if the Vault entry above was already there
+              # from a previous run (e.g. the Secret itself got deleted).
+              root_cert=$(vault kv get -field=cert kv/certs/root)
+              esc_cert=$(printf '%s' "$root_cert" | sed -e ':a' -e 'N' -e '$!ba' -e 's/\r\{0,1\}\n/\\n/g')
+              secret_json=$(printf '{"apiVersion":"v1","kind":"Secret","metadata":{"name":"console-root-cert"},"stringData":{"root_cert.pem":"%s"}}' "$esc_cert")
+              wget -q -O /tmp/secret_post.json \
+                --header="Authorization: Bearer $(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" \
+                --header="Content-Type: application/json" \
+                --ca-certificate=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt \
+                --post-data="$secret_json" \
+                "https://kubernetes.default.svc/api/v1/namespaces/{{ .Release.Namespace }}/secrets" 2>/tmp/secret_post.err || true
+              if grep -q '"kind":"Secret"' /tmp/secret_post.json 2>/dev/null; then
+                echo "Created console-root-cert Secret."
+              elif grep -q AlreadyExists /tmp/secret_post.json 2>/dev/null; then
+                echo "console-root-cert Secret already exists."
+              else
+                echo "Warning: could not create console-root-cert Secret (see /tmp/secret_post.json / .err)."
+              fi
           env:
             - name: VAULT_TOKEN
               valueFrom:

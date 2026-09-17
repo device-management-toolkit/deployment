@@ -38,9 +38,18 @@ spec:
     spec:
       imagePullSecrets:
         - name: registrycredentials
+      volumes:
+        - name: root-cert
+          secret:
+            secretName: console-root-cert
       containers:
         - name: console
           image: {{ .Values.images.console }}
+          volumeMounts:
+            - name: root-cert
+              mountPath: /config/root_cert.pem
+              subPath: root_cert.pem
+              readOnly: true
           readinessProbe:
             httpGet:
               path: /healthz

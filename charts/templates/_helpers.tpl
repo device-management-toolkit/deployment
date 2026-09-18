@@ -52,6 +52,14 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{/*
+Public host[:port] that browser clients use to reach the gateway.
+Falls back to console.commonName if gateway.publicUrl is not set.
+*/}}
+{{- define "installServersChart.publicUrl" -}}
+{{- default .Values.console.commonName .Values.gateway.publicUrl -}}
+{{- end -}}
+
+{{/*
 Create the name of the service account to use
 */}}
 {{- define "installServersChart.serviceAccountName" -}}

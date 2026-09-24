@@ -111,11 +111,15 @@ plugins:
   config:
     claims_to_verify:
     - exp
+    cookie_names:
+    - console_session
 - name: jwt
   route: console-relay-route
   config:
     claims_to_verify:
     - exp
+    cookie_names:
+    - console_session
 
 consumers:
   - username: admin

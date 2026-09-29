@@ -60,3 +60,10 @@ kong:
         parameters: []
     http:
       enabled: false
+
+gateway:
+  # Public host[:port] reached by browser clients. The web UI builds its MPS
+  # and RPS API URLs from this; separate from the Console common name.
+  # Defaults to console.commonName when left unset. One of the two must be set
+  # if webui.enabled is true, otherwise rendering fails with a clear message.
+  publicUrl:

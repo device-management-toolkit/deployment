@@ -68,6 +68,18 @@ services:
     strip_path: true
     paths:
     - /mps/login/api/v1/authorize
+
+- name: mps-redirection-authorize
+  host: mps
+  port: 3000
+  path: /api/v1/authorize/redirection
+  tags:
+  - mps
+  routes:
+  - name: mps-redirection-authorize-route
+    strip_path: true
+    paths:
+    - /mps/login/api/v1/authorize/redirection
  
 - name: rps-rest
   host: rps
@@ -152,6 +164,11 @@ plugins:
     - exp
 - name: jwt
   service: mps-rest
+  config:
+    claims_to_verify:
+    - exp
+- name: jwt
+  route: mps-redirection-authorize-route
   config:
     claims_to_verify:
     - exp

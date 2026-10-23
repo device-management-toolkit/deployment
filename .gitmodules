@@ -4,7 +4,7 @@
 [submodule "rps"]
 	path = rps
 	url = https://github.com/device-management-toolkit/rps.git
-	branch = feat/amt-22
+	branch = feat/amt-22-ext
 [submodule "ui-toolkit"]
 	path = ui-toolkit
 	url = https://github.com/device-management-toolkit/ui-toolkit.git

@@ -11,6 +11,10 @@ console:
 webui:
   enabled: true
 
+gateway:
+  # Override with your actual public host[:port] when deploying
+  publicUrl: <PUBLIC-HOST>
+
 mpsrouter:
   enabled: true
 

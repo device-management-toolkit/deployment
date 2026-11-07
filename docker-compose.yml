@@ -27,10 +27,14 @@ services:
       HTTP_HOST: "0.0.0.0"
       HTTP_PORT: "8181"
       HTTP_TLS_ENABLED: "false"
+      # Browser origin is https://MPS_COMMON_NAME via Kong on :443; CORS 403s without it.
+      HTTP_ALLOWED_ORIGINS: "https://${MPS_COMMON_NAME}"
       LOG_LEVEL: ${LOG_LEVEL}
       APP_DISABLE_CIRA: "false"
       NO_PROXY: "${NO_PROXY:-localhost,127.0.0.1,::1},vault"
       no_proxy: "${no_proxy:-localhost,127.0.0.1,::1},vault"
+      # RPS reads /api/v1/admin/* directly, bypassing Kong's jwt plugin on console-api-route.
+      AUTH_GATEWAY_ENFORCED: "true"
     healthcheck:
       test: ["CMD", "/app", "--health"]
       interval: 12s
@@ -72,11 +76,12 @@ services:
       retries: 3
       test: ["CMD", "node", "rps/dist/Healthcheck.js"]
     environment:
+      # console mode: RPS reads config from Console's API, needs no database, skips /api/v1.
+      RPS_MODE: console
       RPS_MPS_SERVER: http://console:8181
       RPS_SECRETS_PATH: ${SECRETS_PATH}
       RPS_VAULT_TOKEN: ${VAULT_TOKEN}
       RPS_VAULT_ADDRESS: ${VAULT_ADDRESS}
-      RPS_CONNECTION_STRING: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/rpsdb
       RPS_CONSUL_ENABLED: ${CONSUL_ENABLED}
       RPS_CONSUL_HOST: ${CONSUL_HOST}
       RPS_CONSUL_PORT: ${CONSUL_PORT}

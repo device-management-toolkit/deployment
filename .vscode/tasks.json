@@ -1,0 +1,73 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Start Infrastructure",
+            "type": "shell",
+            "command": "docker-compose up -d db vault kong mosquitto consul",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "Stop Infrastructure",
+            "type": "shell",
+            "command": "docker-compose stop db vault kong mosquitto consul",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Restart Infrastructure",
+            "type": "shell",
+            "command": "docker-compose restart db vault kong mosquitto consul",
+            "problemMatcher": []
+        },
+        {
+            "label": "Connect DevContainer to Network",
+            "type": "shell",
+            "command": "docker network connect $(docker network ls --filter name=openamtnetwork --format '{{.Name}}') $HOSTNAME || echo 'Already connected or network not found'",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Build MPS",
+            "type": "typescript",
+            "tsconfig": "mps/tsconfig.build.json",
+            "group": "build"
+        },
+        {
+            "label": "Build RPS",
+            "type": "typescript",
+            "tsconfig": "rps/tsconfig.build.json",
+            "group": "build"
+        },
+        {
+            "label": "Serve WebUI (Angular)",
+            "type": "shell",
+            "command": "cd sample-web-ui && npm install && npm start -- --host 0.0.0.0",
+            "isBackground": true,
+            "problemMatcher": {
+                "owner": "typescript",
+                "pattern": "$tsc",
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": {
+                        "regexp": "Compiling..."
+                    },
+                    "endsPattern": {
+                        "regexp": "Compiled successfully"
+                    }
+                }
+            }
+        }
+    ]
+}

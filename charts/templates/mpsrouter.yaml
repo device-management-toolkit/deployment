@@ -22,7 +22,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: mpsrouter
-  namespace: default
 spec:
   replicas: {{ .Values.mpsrouter.replicaCount }}
   selector:
@@ -31,7 +30,7 @@ spec:
   template:
     metadata:
       annotations:
-        kuma.io/direct-access-services: "mps_default_svc_3000"
+        kuma.io/direct-access-services: "console_{{ .Release.Namespace }}_svc_3000"
       labels:
         app: mpsrouter
     spec:

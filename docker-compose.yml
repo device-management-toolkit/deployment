@@ -33,8 +33,8 @@ services:
       APP_DISABLE_CIRA: "false"
       NO_PROXY: "${NO_PROXY:-localhost,127.0.0.1,::1},vault"
       no_proxy: "${no_proxy:-localhost,127.0.0.1,::1},vault"
-      # RPS reads /api/v1/admin/* directly, bypassing Kong's jwt plugin on console-api-route.
-      AUTH_GATEWAY_ENFORCED: "true"
+      # Authenticates RPS calls to service-only routes (e.g. profile secrets), not browser/Kong traffic.
+      AUTH_SERVICE_TOKEN: ${CONSOLE_SERVICE_TOKEN}
     healthcheck:
       test: ["CMD", "/app", "--health"]
       interval: 12s
@@ -79,6 +79,7 @@ services:
       # console mode: RPS reads config from Console's API, needs no database, skips /api/v1.
       RPS_MODE: console
       RPS_MPS_SERVER: http://console:8181
+      RPS_CONSOLE_SERVICE_TOKEN: ${CONSOLE_SERVICE_TOKEN}
       RPS_SECRETS_PATH: ${SECRETS_PATH}
       RPS_VAULT_TOKEN: ${VAULT_TOKEN}
       RPS_VAULT_ADDRESS: ${VAULT_ADDRESS}

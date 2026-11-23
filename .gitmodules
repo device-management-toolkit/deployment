@@ -1,27 +1,36 @@
 [submodule "rpc"]
 	path = rpc
 	url = https://github.com/device-management-toolkit/rpc.git
+	branch = main
 [submodule "rps"]
 	path = rps
 	url = https://github.com/device-management-toolkit/rps.git
+	branch = feat/2999-5-maintenance-failures
 [submodule "ui-toolkit"]
 	path = ui-toolkit
 	url = https://github.com/device-management-toolkit/ui-toolkit.git
+	branch = main
 [submodule "mps"]
 	path = mps
 	url = https://github.com/device-management-toolkit/mps.git
+	branch = main
 [submodule "sample-web-ui"]
 	path = sample-web-ui
 	url = https://github.com/device-management-toolkit/sample-web-ui.git
+	branch = main
 [submodule "mps-router"]
 	path = mps-router
 	url = https://github.com/device-management-toolkit/mps-router.git
+	branch = main
 [submodule "ui-toolkit-angular"]
 	path = ui-toolkit-angular
 	url = https://github.com/device-management-toolkit/ui-toolkit-angular.git
+	branch = main
 [submodule "ui-toolkit-react"]
 	path = ui-toolkit-react
 	url = https://github.com/device-management-toolkit/ui-toolkit-react.git
+	branch = main
 [submodule "rpc-go"]
 	path = rpc-go
 	url = https://github.com/device-management-toolkit/rpc-go
+	branch = main

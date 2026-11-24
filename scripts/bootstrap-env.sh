@@ -64,6 +64,27 @@ ensure_kv() {
   grep -q "^${key}=" "$ENV_FILE" || printf '%s=\n' "$key" >> "$ENV_FILE"
 }
 
+# Reads a key's value the way dotenv parsers do: pulls content out of a
+# matching pair of surrounding quotes (anything after the closing quote is
+# a comment), or, when unquoted, strips a trailing ` # comment` and outer
+# whitespace. A plain awk/grep read would return quotes and comments as part
+# of the value, so e.g. DEPLOYMENT_MODE="console-rps" or
+# DEPLOYMENT_MODE=console-rps # enable RPS would never match a bare case
+# pattern like console-rps.
+get_kv() {
+  key=$1
+  raw=$(awk -F= -v k="$key" '$0 ~ "^"k"=" { sub(/^[^=]*=/, ""); print; exit }' "$ENV_FILE")
+  case "$raw" in
+    \"*) raw=$(printf '%s' "$raw" | sed -E 's/^"([^"]*)".*$/\1/') ;;
+    \'*) raw=$(printf '%s' "$raw" | sed -E "s/^'([^']*)'.*\$/\\1/") ;;
+    *)
+      raw=$(printf '%s' "$raw" | sed -E 's/[[:space:]]+#.*$//')
+      raw=$(printf '%s' "$raw" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')
+      ;;
+  esac
+  printf '%s' "$raw"
+}
+
 fill() {
   key=$1
   bytes=${2:-24}
@@ -83,3 +104,28 @@ fill KEYCLOAK_ADMIN_PASSWORD
 fill CONSOLE_USER_PASSWORD
 fill POSTGRES_PASSWORD
 fill VAULT_TOKEN
+
+# Older .env files predate the deployment mode flag; default to option 1.
+ensure_kv DEPLOYMENT_MODE
+mode=$(get_kv DEPLOYMENT_MODE)
+if [ -z "$mode" ]; then
+  set_kv DEPLOYMENT_MODE console
+  mode=console
+fi
+
+case "$mode" in
+  console) profile="" ;;
+  console-rps|console-rps-vault) profile="rps" ;;
+  *)
+    echo "[bootstrap] unknown DEPLOYMENT_MODE '$mode', defaulting to console" >&2
+    set_kv DEPLOYMENT_MODE console
+    mode=console
+    profile=""
+    ;;
+esac
+
+# docker compose itself only understands COMPOSE_PROFILES, not DEPLOYMENT_MODE,
+# so derive it here. This is the one place DEPLOYMENT_MODE gets translated;
+# nothing else in the repo needs to know the profile name.
+ensure_kv COMPOSE_PROFILES
+set_kv COMPOSE_PROFILES "$profile"

@@ -59,6 +59,8 @@ services:
   rps:
     restart: always
     image: intel/oact-rps:latest
+    profiles:
+      - rps
     networks:
       - dmtnetwork
     build:

@@ -22,7 +22,13 @@ Write-Lf (Get-Content $envFile)
 
 function Get-Kv($key) {
   foreach ($line in Get-Content $envFile) {
-    if ($line -match "^$key=(.*)$") { return $Matches[1] }
+    if ($line -match "^$key=(.*)$") {
+      $raw = $Matches[1]
+      # Strips dotenv quotes/inline comments so quoted or commented values still match.
+      if ($raw -match '^"(.*)"') { return $Matches[1] }
+      if ($raw -match "^'(.*)'") { return $Matches[1] }
+      return ($raw -replace '\s+#.*$', '').Trim()
+    }
   }
   return $null
 }
@@ -75,3 +81,28 @@ if ([string]::IsNullOrEmpty($current) -or $current -eq 'localhost') {
     Write-Host "[bootstrap] generated $_"
   }
 }
+
+# Older .env files predate the deployment mode flag; default to option 1.
+Set-MissingKv 'DEPLOYMENT_MODE'
+$mode = Get-Kv 'DEPLOYMENT_MODE'
+if ([string]::IsNullOrEmpty($mode)) {
+  Set-Kv 'DEPLOYMENT_MODE' 'console'
+  $mode = 'console'
+}
+
+$rpsProfile = switch ($mode) {
+  'console' { '' }
+  { $_ -in 'console-rps', 'console-rps-vault' } { 'rps' }
+  default {
+    Write-Host "[bootstrap] unknown DEPLOYMENT_MODE '$mode', defaulting to console"
+    Set-Kv 'DEPLOYMENT_MODE' 'console'
+    $mode = 'console'
+    ''
+  }
+}
+
+# docker compose itself only understands COMPOSE_PROFILES, not DEPLOYMENT_MODE,
+# so derive it here. This is the one place DEPLOYMENT_MODE gets translated;
+# nothing else in the repo needs to know the profile name.
+Set-MissingKv 'COMPOSE_PROFILES'
+Set-Kv 'COMPOSE_PROFILES' $rpsProfile

@@ -7,10 +7,10 @@ _format_version: "3.0"
 _transform: true
 
 services:
-# Console: subsumes legacy MPS API + KVM/SOL/IDER relay
+# Console REST via MPS-Router for device-instance routing
 - name: console
-  host: console
-  port: 8181
+  host: mpsrouter
+  port: 8003
   protocol: http
   tags:
   - console

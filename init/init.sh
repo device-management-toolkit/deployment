@@ -67,4 +67,19 @@ if [ ! -f "$REALM_EXPORT_PATH" ] || [ ! -f "$KONG_CONFIG_PATH" ]; then
   rm -f /tmp/sign.key /tmp/sign.crt
 fi
 
+# Existing Keycloak installs keep their generated signing key; update only this upstream.
+if [ -f "$KONG_CONFIG_PATH" ]; then
+  awk '
+    /^- name: console$/ { console_service = 1; print; next }
+    /^- name:/ { console_service = 0 }
+    console_service && /^  host:/ { sub(/host:.*/, "host: mpsrouter") }
+    console_service && /^  port:/ { sub(/port:.*/, "port: 8003") }
+    { print }
+  ' "$KONG_CONFIG_PATH" > "$KONG_CONFIG_PATH.tmp"
+  if ! cmp -s "$KONG_CONFIG_PATH.tmp" "$KONG_CONFIG_PATH"; then
+    cat "$KONG_CONFIG_PATH.tmp" > "$KONG_CONFIG_PATH"
+  fi
+  rm -f "$KONG_CONFIG_PATH.tmp"
+fi
+
 echo "[init] done"

@@ -40,6 +40,31 @@ services:
       - "8181"
       - "4433"
 
+  mpsrouter:
+    restart: always
+    image: intel/device-mgmt-toolkit-mps-router:latest
+    build:
+      context: ./services/mps-router
+      dockerfile: ./Dockerfile
+    networks:
+      - dmtnetwork
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      MPS_CONNECTION_STRING: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/rpsdb?sslmode=disable
+      PORT: "8003"
+      MPS_HOST: console
+      MPS_PORT: "8181"
+    healthcheck:
+      test: ["CMD", "/app", "--health"]
+      interval: 12s
+      timeout: 12s
+      retries: 3
+      start_period: 5s
+    expose:
+      - "8003"
+
   webui:
     restart: always
     image: intel/oact-webui:latest
@@ -119,6 +144,8 @@ services:
   kong:
     restart: always
     image: kong:3.9
+    labels:
+      org.device-management-toolkit.kong-config-revision: mps-router-v1
     healthcheck:
       test: ["CMD", "kong", "health"]
       interval: 10s

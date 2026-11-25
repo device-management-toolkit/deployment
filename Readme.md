@@ -47,6 +47,51 @@ docker compose -f docker-compose.yml -f docker-compose.keycloak.yml up -d --buil
 
 The bootstrap step (run automatically by `make`, or `./scripts/bootstrap-env.ps1` on Windows) creates `.env` from `.env.template` if missing, auto-detects your host's LAN IP for `MPS_COMMON_NAME` (so AMT devices reach this host over CIRA and TLS certs match — getting this wrong is a common gotcha), and fills any blank password fields with random values. Override `MPS_COMMON_NAME` in `.env` if you have a DNS name or want a different IP.
 
+When upgrading an existing stack to use MPS-Router, Compose recreates Kong once to load the updated upstream. This briefly interrupts traffic and CIRA connections; subsequent starts do not recreate Kong unless its configuration changes.
+
+### MPS-Router (local)
+
+MPS-Router is included in the Docker Compose stack. Kong sends Console REST requests through MPS-Router, which looks up a device's `mpsInstance` in PostgreSQL and forwards the request to that Console instance. CIRA traffic on port 4433 continues to go directly to Console.
+
+Start the stack using the authentication mode you are running: `make up` for simple authentication or `make up-keycloak` for Keycloak. Then check the router health:
+
+```bash
+docker compose ps mpsrouter
+docker compose exec mpsrouter /app --health
+MPS_COMMON_NAME=$(sed -n 's/^MPS_COMMON_NAME=//p' .env)
+curl -k -i "https://${MPS_COMMON_NAME}/healthz"
+```
+
+The health command checks the router's database connection. The `/healthz` request verifies the Kong-to-router-to-Console path.
+
+To run multiple Console containers locally, use the same Compose files as the currently running stack. The Keycloak command must include the overlay; a base-only `up` would switch the recreated services back to simple authentication.
+
+```bash
+# Simple authentication
+docker compose -f docker-compose.yml up -d --build --scale console=2
+
+# Keycloak authentication
+docker compose -f docker-compose.yml -f docker-compose.keycloak.yml up -d --build --scale console=2
+
+docker compose ps console
+for container in $(docker compose ps -q console); do
+  docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$container"
+done
+```
+
+For a temporary routing test, update a test device's `mpsInstance` to one of the printed Console container IPs (replace the example values):
+
+```bash
+docker compose exec -T db sh -c 'exec psql -U "$POSTGRES_USER" -d rpsdb "$@"' sh \
+  -c "UPDATE devices SET mpsinstance='CONSOLE_IP' WHERE guid='DEVICE_GUID';"
+curl -k -H "Authorization: Bearer JWT" \
+  "https://${MPS_COMMON_NAME}/api/v1/devices/DEVICE_GUID"
+```
+
+Confirm that the request reaches the selected replica; repeat with the other replica's address. The router uses the recorded `mpsInstance` as the destination host, so the value must be reachable from the Compose network.
+
+**Limitation:** the current Console code does not automatically register a distinct reachable `mpsInstance` for each Compose replica. The manual mapping above tests the router's lookup and forwarding, but automatic multi-instance affinity requires Console-side instance registration; scaling `console` alone does not satisfy that behavior.
+
 `make down` stops either mode. `make clean` (or `docker compose -f docker-compose.yml -f docker-compose.keycloak.yml down -v; Remove-Item -Recurse generated`) also wipes volumes and generated material — switching modes is cleanest after a `make clean`. In Keycloak mode an `init` container generates a per-deployment TLS cert + RSA token-signing keypair into `./generated/` (gitignored) before Keycloak starts.
 
 Once the stack is up, `make` opens your browser at `https://<MPS_COMMON_NAME>/` (the app is served over HTTPS via Kong with a self-signed cert, so accept the browser warning). On Windows, open that URL manually after `docker compose up`.

@@ -129,7 +129,14 @@ services:
     command:
       - sh
       - -c
-      - 'awk -v k="$$AUTH_JWT_KEY" ''{gsub(/\$\{AUTH_JWT_KEY\}/, k); print}'' /home/kong/kong.yml.tpl > /tmp/kong.yml && exec kong start --vv'
+      - |
+        if [ -z "$$RPS_ENABLED" ]; then
+          sed '/# RPS-ROUTES-START/,/# RPS-ROUTES-END/d' /home/kong/kong.yml.tpl > /tmp/kong.yml.stripped
+        else
+          cp /home/kong/kong.yml.tpl /tmp/kong.yml.stripped
+        fi
+        awk -v k="$$AUTH_JWT_KEY" '{gsub(/\$${AUTH_JWT_KEY}/, k); print}' /tmp/kong.yml.stripped > /tmp/kong.yml
+        exec kong start --vv
     environment:
       - KONG_DATABASE=off
       - KONG_CASSANDRA_CONTACT_POINTS=kong-database
@@ -145,6 +152,9 @@ services:
       - KONG_UPSTREAM_KEEPALIVE_POOL_SIZE=0
       - KONG_STREAM_LISTEN=0.0.0.0:4433
       - AUTH_JWT_KEY=${AUTH_JWT_KEY}
+      # Blank in console mode (no rps profile), so kong strips the RPS routes
+      # above and 404s instead of 500ing on a dead upstream.
+      - RPS_ENABLED=${COMPOSE_PROFILES}
     networks:
       - dmtnetwork
     volumes:

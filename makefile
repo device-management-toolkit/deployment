@@ -14,10 +14,11 @@ up-keycloak:
 	@docker compose $(COMPOSE_KEYCLOAK) up -d --build
 	@./scripts/open-app.sh keycloak
 
-# Both -f files so it tears down whichever mode is running
+# Every profile, regardless of what's active in .env right now — a prior
+# mode switch can leave rps running under a profile .env no longer names.
 down:
-	@docker compose $(COMPOSE_KEYCLOAK) down
+	@docker compose --profile '*' $(COMPOSE_KEYCLOAK) down
 
 clean:
-	@docker compose $(COMPOSE_KEYCLOAK) down -v
+	@docker compose --profile '*' $(COMPOSE_KEYCLOAK) down -v
 	@rm -rf generated/

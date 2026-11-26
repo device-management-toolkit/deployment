@@ -5,7 +5,7 @@
 [submodule "rps"]
 	path = rps
 	url = https://github.com/device-management-toolkit/rps.git
-	branch = feat/2999-5-maintenance-failures
+	branch = main
 [submodule "ui-toolkit"]
 	path = ui-toolkit
 	url = https://github.com/device-management-toolkit/ui-toolkit.git

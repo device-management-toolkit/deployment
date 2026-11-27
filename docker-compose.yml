@@ -27,6 +27,7 @@ services:
       HTTP_HOST: "0.0.0.0"
       HTTP_PORT: "8181"
       HTTP_TLS_ENABLED: "false"
+      HTTP_ALLOWED_ORIGINS: https://${MPS_COMMON_NAME}
       LOG_LEVEL: ${LOG_LEVEL}
       APP_DISABLE_CIRA: "false"
       NO_PROXY: "${NO_PROXY:-localhost,127.0.0.1,::1},vault"

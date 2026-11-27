@@ -51,6 +51,7 @@ services:
     - port: 4433
 
 # RPS WebSocket (provisioning)
+# RPS-ROUTES-START
 - name: rps-ws
   host: rps
   port: 8080
@@ -69,6 +70,7 @@ services:
     strip_path: true
     paths:
     - /maintenance
+# RPS-ROUTES-END
 
 # uncomment to use with enterprise assistant
 # - name: rps-ea

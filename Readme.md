@@ -28,6 +28,16 @@ The `--recursive` flag is required — this repository uses git submodules under
 
 There are two auth modes. **Simple** (the default) uses Console's built-in login. **Keycloak** swaps in a bundled Keycloak OIDC IdP (a stand-in for a 3rd-party IdP like Auth0 / Entra). The Keycloak stack is layered on top of the simple one via `docker-compose.keycloak.yml`.
 
+Which Cloud-v3 deployment model runs is set by `DEPLOYMENT_MODE` in `.env`, read automatically by `make up`:
+
+| `DEPLOYMENT_MODE` | Model | RPS |
+| --- | --- | --- |
+| `console` (default) | Console + RPC-Go only | not started |
+| `console-rps` | Console + RPS, secrets in the database | started |
+| `console-rps-vault` | Console + RPS, secrets in Vault | started |
+
+RPS has Vault access in both `console-rps` and `console-rps-vault` — which one it actually stores secrets in is a `DEPLOYMENT_MODE` check in RPS's own code, not an infra-level difference.
+
 **Linux / macOS / WSL**:
 
 ```bash
@@ -45,9 +55,9 @@ docker compose up -d --build
 docker compose -f docker-compose.yml -f docker-compose.keycloak.yml up -d --build
 ```
 
-The bootstrap step (run automatically by `make`, or `./scripts/bootstrap-env.ps1` on Windows) creates `.env` from `.env.template` if missing, auto-detects your host's LAN IP for `MPS_COMMON_NAME` (so AMT devices reach this host over CIRA and TLS certs match — getting this wrong is a common gotcha), and fills any blank password fields with random values. Override `MPS_COMMON_NAME` in `.env` if you have a DNS name or want a different IP.
+The bootstrap step (run automatically by `make`, or `./scripts/bootstrap-env.ps1` on Windows) creates `.env` from `.env.template` if missing, auto-detects your host's LAN IP for `MPS_COMMON_NAME` (so AMT devices reach this host over CIRA and TLS certs match — getting this wrong is a common gotcha), fills any blank password fields with random values, and translates `DEPLOYMENT_MODE` into the Compose profile that actually starts or skips RPS. Override `MPS_COMMON_NAME` in `.env` if you have a DNS name or want a different IP.
 
-`make down` stops either mode. `make clean` (or `docker compose -f docker-compose.yml -f docker-compose.keycloak.yml down -v; Remove-Item -Recurse generated`) also wipes volumes and generated material — switching modes is cleanest after a `make clean`. In Keycloak mode an `init` container generates a per-deployment TLS cert + RSA token-signing keypair into `./generated/` (gitignored) before Keycloak starts.
+`make down` stops whichever mode is running, RPS included if it was started. `make clean` (or `docker compose --profile '*' -f docker-compose.yml -f docker-compose.keycloak.yml down -v; Remove-Item -Recurse generated`) also wipes volumes and generated material — switching modes is cleanest after a `make clean`. In Keycloak mode an `init` container generates a per-deployment TLS cert + RSA token-signing keypair into `./generated/` (gitignored) before Keycloak starts.
 
 Once the stack is up, `make` opens your browser at `https://<MPS_COMMON_NAME>/` (the app is served over HTTPS via Kong with a self-signed cert, so accept the browser warning). On Windows, open that URL manually after `docker compose up`.
 
